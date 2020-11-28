@@ -1,4 +1,4 @@
-# debian-archivebox
+# docker-archivebox
 
 The official Docker image for [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox), the self-hosted internet archiving solution.
 
