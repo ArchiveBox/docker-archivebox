@@ -21,6 +21,17 @@ docker run -v $PWD:/data -it archivebox/archivebox init
 docker run -v $PWD:/data -it archivebox/archivebox add 'https://example.com'
 docker run -v $PWD:/data -it -p 8000:8000 archivebox/archivebox server 0.0.0.0:8000
 ```
+
+---
+**Kubernetes:**
+
+archivebox.yml contains an example manifest used with rook-ceph-rbd and metallb.
+
+Use as-is, or edit to your needs, objects will be created in namespace: `archivebox`
+
+```bash
+kubectl apply -f archivebox.yml
+```
 ---
 
 Tested on amd64/x86 and armv7, should work on all systems that support Docker.
