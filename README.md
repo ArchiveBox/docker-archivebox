@@ -89,6 +89,39 @@ To enable Sonic full-text search backend and other optional extras, see: https:/
 
 Use as-is, or edit to your needs, objects will be created in namespace: `archivebox`.
 
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archivebox-deployment
+spec:
+  selector:
+    matchLabels:
+      app: archivebox
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: archivebox
+    spec:
+      containers:
+        - name: archivebox
+          args: ["server", "--quick-init", "0.0.0.0:8000"]
+          image: archivebox/archivebox
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+              name: http
+          volumeMounts:
+            - mountPath: /data
+              name: archivebox
+      restartPolicy: Always
+      volumes:
+        - name: archivebox
+          persistentVolumeClaim:
+            claimName: archivebox
+```
+
 #### Usage
 
 ```bash
