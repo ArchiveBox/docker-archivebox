@@ -4,8 +4,18 @@ The official Docker image for [ArchiveBox](https://github.com/ArchiveBox/Archive
 
 https://hub.docker.com/r/archivebox/archivebox
 ```bash
-docker pull archivebox/archivebox
+docker pull archivebox/archivebox:dev
 ```
+
+**Tags available:**
+
+It's recommended to use either `:master` (stable, all architectures) or `:dev` (beta/unstable).
+
+- `:latest` (the default stable tag, 1:1 with `:master`, only built for `amd64`)
+- `:dev`/`:master`/`:<branchname>` (tags for each git branch, built for `amd64`, `arm64`, `arm/v7`)
+- `sha-2c7be14`/`:sha-<commitid>` (tags for each git commit, built for `amd64`, `arm64`, `arm/v7`)
+
+*For a full list of the published images: https://hub.docker.com/r/archivebox/archivebox/tags*
 
 <img width="500px" alt="Docker Hub Screenshot" src="https://user-images.githubusercontent.com/511499/147287184-6f1201f8-6827-4002-a6a3-3aae7eb859d4.png">
 
@@ -13,9 +23,10 @@ docker pull archivebox/archivebox
 
 **Pull the image:**
 ```bash
-docker pull archivebox/archivebox
-docker image ls archivebox/archivebox
+docker pull archivebox/archivebox:dev
+docker image ls archivebox/archivebox:dev
 ```
+
 
 **Try it out:**
 ```bash
