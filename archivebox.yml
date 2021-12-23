@@ -45,7 +45,7 @@ spec:
             name: archivebox
       containers:
         - name: archivebox
-          args: ["server"]
+          args: ["server", "--quick-init", "0.0.0.0:8000"]
           image: archivebox/archivebox
           ports:
             - containerPort: 8000
@@ -53,8 +53,8 @@ spec:
               name: http
           resources:
             requests:
-              cpu: 50m
-              memory: 32Mi
+              cpu: 250m
+              memory: 512Mi
           volumeMounts:
             - mountPath: /data
               name: archivebox
