@@ -3,6 +3,11 @@
 The official Docker image for [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox), the self-hosted internet archiving solution.
 
 https://hub.docker.com/r/archivebox/archivebox
+```bash
+docker pull archivebox/archivebox
+```
+
+<img width="500px" alt="Docker Hub Screenshot" src="https://user-images.githubusercontent.com/511499/147287184-6f1201f8-6827-4002-a6a3-3aae7eb859d4.png">
 
 ## Quickstart
 
@@ -59,6 +64,14 @@ git pull --recurse-submodules
 ./bin/release.sh
 ```
 
+**Inspecting the image:**
+
+```bash
+docker image ls archivebox/archivebox
+
+docker image inspect <image id>  # view image details
+docker image history <image id>  # view image layer sizes
+```
 ---
 
 
