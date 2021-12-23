@@ -50,7 +50,41 @@ kubectl apply -f archivebox.yml
 ```
 ---
 
-Tested on amd64/x86 and armv7, should work on all systems that support Docker.
+Tested on amd64/x86, arm64, and armv7, should work on all systems that support Docker.
+
+---
+
+## Docker Compose
+
+**`docker-compose.yml`:**
+```yaml
+version: '3.9'
+
+services:
+    archivebox:
+        image: 'archivebox/archivebox:master'
+        command: server --quick-init 0.0.0.0:8000
+        ports:
+            - 8000:8000
+        environment:
+            # add any ArchiveBox config options you want here
+            - ALLOWED_HOSTS=*
+            - MEDIA_MAX_SIZE=750m
+        volumes:
+            - ./data:/data
+```
+
+```bash
+docker-compose up
+
+# Usage: docker-compose run archivebox [subcommand] [...args]
+
+docker-compose run archivebox setup --init
+docker-compose run archivebox add --depth=1 'https://example.com'
+...
+```
+
+To enable Sonic full-text search backend and other optional extras, see: https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml#L30
 
 ---
 
