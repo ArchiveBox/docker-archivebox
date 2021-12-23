@@ -4,7 +4,7 @@ The official Docker image for [ArchiveBox](https://github.com/ArchiveBox/Archive
 
 https://hub.docker.com/r/archivebox/archivebox
 ```bash
-docker pull archivebox/archivebox:dev
+docker pull archivebox/archivebox:master
 ```
 
 **Platforms Supported:**
@@ -24,23 +24,25 @@ It's recommended to use either `:master` (stable, all architectures) or `:dev` (
 
 <img width="500px" alt="Docker Hub Screenshot" src="https://user-images.githubusercontent.com/511499/147287184-6f1201f8-6827-4002-a6a3-3aae7eb859d4.png">
 
-## Quickstart
+## Docker
 
-**Pull the image:**
 ```bash
-docker pull archivebox/archivebox:dev
-docker image ls archivebox/archivebox:dev
+mkdir ~/archivebox && cd ~/archivebox  # data folder can be anywhere
+docker pull archivebox/archivebox:master
+docker run -v $PWD:/data -it archivebox/archivebox init --setup
 ```
 
+#### Usage
 
-**Try it out:**
 ```bash
-docker run archivebox/archivebox version
+# docker run -v $PWD:/data -it archivebox/archivebox [subcommand] [...args]
 
-mkdir data && cd data
-docker run -v $PWD:/data -it archivebox/archivebox init
+docker run -v $PWD:/data -it archivebox/archivebox version
+docker run -v $PWD:/data -it archivebox/archivebox init --setup
 docker run -v $PWD:/data -it archivebox/archivebox add 'https://example.com'
 docker run -v $PWD:/data -it -p 8000:8000 archivebox/archivebox server 0.0.0.0:8000
+
+open http://127.0.0.1:8000
 ```
 
 ---
@@ -68,10 +70,14 @@ services:
 #### Usage
 
 ```bash
+mkdir ~/archivebox && cd ~/archivebox
+# create docker-compose.yml file in ~/archivebox
+docker-compose pull
 docker-compose up
 
 # docker-compose run archivebox [subcommand] [...args]
 
+docker-compose run archivebox version
 docker-compose run archivebox setup --init
 docker-compose run archivebox add --depth=1 'https://example.com'
 ...
