@@ -58,3 +58,9 @@ git pull --recurse-submodules
 # Push the image to Docker Hub & Github Packages
 ./bin/release.sh
 ```
+
+---
+
+
+*Please note: The old image at [`nikisweeting/archivebox`](https://hub.docker.com/r/nikisweeting/archivebox) is deprecated, use [`archivebox/archivebox`](https://hub.docker.com/r/archivebox/archivebox) instead.*
+
