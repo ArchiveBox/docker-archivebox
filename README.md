@@ -7,6 +7,11 @@ https://hub.docker.com/r/archivebox/archivebox
 docker pull archivebox/archivebox:dev
 ```
 
+**Platforms Supported:**
+- `amd64` all x86 64-bit Intel/AMD processors
+- `arm/v7` Raspberry Pi v1 - v3 and other older ARM-based systems
+- `arm64` Raspberry Pi v4+, M1 Macs, and other newer ARM-based systems
+
 **Tags available:**
 
 It's recommended to use either `:master` (stable, all architectures) or `:dev` (beta/unstable).
@@ -39,20 +44,6 @@ docker run -v $PWD:/data -it -p 8000:8000 archivebox/archivebox server 0.0.0.0:8
 ```
 
 ---
-**Kubernetes:**
-
-archivebox.yml contains an example manifest used with rook-ceph-rbd and metallb.
-
-Use as-is, or edit to your needs, objects will be created in namespace: `archivebox`
-
-```bash
-kubectl apply -f archivebox.yml
-```
----
-
-Tested on amd64/x86, arm64, and armv7, should work on all systems that support Docker.
-
----
 
 ## Docker Compose
 
@@ -74,10 +65,12 @@ services:
             - ./data:/data
 ```
 
+#### Usage
+
 ```bash
 docker-compose up
 
-# Usage: docker-compose run archivebox [subcommand] [...args]
+# docker-compose run archivebox [subcommand] [...args]
 
 docker-compose run archivebox setup --init
 docker-compose run archivebox add --depth=1 'https://example.com'
@@ -85,6 +78,22 @@ docker-compose run archivebox add --depth=1 'https://example.com'
 ```
 
 To enable Sonic full-text search backend and other optional extras, see: https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml#L30
+
+---
+
+## Kubernetes
+
+(BETA: Advanced users only, ArchiveBox does not provide support for Kubernetes users)
+
+[`./archivebox.yml`](https://github.com/ArchiveBox/docker-archivebox/blob/master/archivebox.yml) contains an example Kubernetes manifest (with `rook-ceph-rbd` and `metallb`).
+
+Use as-is, or edit to your needs, objects will be created in namespace: `archivebox`.
+
+#### Usage
+
+```bash
+kubectl apply -f archivebox.yml
+```
 
 ---
 
