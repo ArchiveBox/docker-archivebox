@@ -4,13 +4,20 @@ The official Docker image for [ArchiveBox](https://github.com/ArchiveBox/Archive
 
 https://hub.docker.com/r/archivebox/archivebox
 ```bash
-docker pull archivebox/archivebox:master
+docker pull archivebox/archivebox:dev
 ```
 
 **Platforms Supported:**
 - `amd64` all x86 64-bit Intel/AMD processors
-- `arm/v7` Raspberry Pi v1 - v3 and other older ARM-based systems
-- `arm64` Raspberry Pi v4+, M1 Macs, and other newer ARM-based systems
+- `arm64` Raspberry Pi v4+, M1 Macs, and other newer ARM-based systems (>= ARM v8)
+- `arm/v7` Raspberry Pi v1 - v3 and other older ARM-based systems (as of v0.6, but support will be phased out in the future)
+
+**Platforms _NOT_ Supported:**
+- `i386` all x86 **32-bit** Intel/AMD processors
+- `arm/v6` or earlier pre-2006 32-bit ARM-based systems
+- `riscv64`/`riscv32` or other RISC-V-based systems
+- `ppc64le`/`ppc32` or other PowerPC-based systems
+- `s390x` or other IBM zSystem-based systems
 
 **Tags available:**
 
@@ -28,7 +35,7 @@ It's recommended to use either `:master` (stable, all architectures) or `:dev` (
 
 ```bash
 mkdir ~/archivebox && cd ~/archivebox  # data folder can be anywhere
-docker pull archivebox/archivebox:master
+docker pull archivebox/archivebox
 docker run -v $PWD:/data -it archivebox/archivebox init --setup
 ```
 
@@ -55,7 +62,7 @@ version: '3.9'
 
 services:
     archivebox:
-        image: 'archivebox/archivebox:master'
+        image: 'archivebox/archivebox:dev'
         command: server --quick-init 0.0.0.0:8000
         ports:
             - 8000:8000
