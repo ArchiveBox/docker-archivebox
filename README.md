@@ -7,19 +7,21 @@ https://hub.docker.com/r/archivebox/archivebox
 docker pull archivebox/archivebox:dev
 ```
 
-**Platforms Supported:**
+#### ✅ Platforms Supported
+
 - `amd64` all x86 64-bit Intel/AMD processors
 - `arm64` Raspberry Pi v4+, M1 Macs, and other newer ARM-based systems (>= ARM v8)
 - `arm/v7` Raspberry Pi v1 - v3 and other older ARM-based systems (as of v0.6, but support will be phased out in the future)
 
-**Platforms _NOT_ Supported:**
+#### ❌ Platforms _NOT_ Supported
+
 - `i386` all x86 **32-bit** Intel/AMD processors
 - `arm/v6` or earlier pre-2006 32-bit ARM-based systems
 - `riscv64`/`riscv32` or other RISC-V-based systems
 - `ppc64le`/`ppc32` or other PowerPC-based systems
 - `s390x` or other IBM zSystem-based systems
 
-**Tags available:**
+#### Tags available
 
 It's recommended to use either `:master` (stable, all architectures) or `:dev` (beta/unstable).
 
@@ -30,6 +32,8 @@ It's recommended to use either `:master` (stable, all architectures) or `:dev` (
 *For a full list of the published images: https://hub.docker.com/r/archivebox/archivebox/tags*
 
 <img width="500px" alt="Docker Hub Screenshot" src="https://user-images.githubusercontent.com/511499/147287184-6f1201f8-6827-4002-a6a3-3aae7eb859d4.png">
+
+
 
 ## Docker
 
@@ -161,6 +165,7 @@ git pull --recurse-submodules
 ./bin/build_docker.sh
 
 # Push the image to Docker Hub & Github Packages
+docker login
 ./bin/release.sh
 ```
 
