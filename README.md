@@ -4,19 +4,19 @@ The official Docker image for [ArchiveBox](https://github.com/ArchiveBox/Archive
 
 https://hub.docker.com/r/archivebox/archivebox
 ```bash
-docker pull archivebox/archivebox:dev
+docker pull archivebox/archivebox
 ```
 
 #### ✅ Platforms Supported
 
 - `amd64` all x86 64-bit Intel/AMD processors
-- `arm64` Raspberry Pi v4+, M1 Macs, and other newer ARM-based systems (>= ARM v8)
-- `arm/v7` Raspberry Pi v1 - v3 and other older ARM-based systems (as of v0.6, but support will be phased out in the future)
+- `arm64v8` Raspberry Pi v4+, M1 or newer Macs, and other newer ARM-based systems (>= ARM v8)
+- `arm32v7` Raspberry Pi v1 - v3 and other 32-bit ARM-based systems (as of v0.6, but support will be phased out in the future)
 
 #### ❌ Platforms _NOT_ Supported
 
 - `i386` all x86 **32-bit** Intel/AMD processors
-- `arm/v6` or earlier pre-2006 32-bit ARM-based systems
+- `arm32v6`/`arm32v5` or earlier pre-2006 32-bit ARM-based systems
 - `riscv64`/`riscv32` or other RISC-V-based systems
 - `ppc64le`/`ppc32` or other PowerPC-based systems
 - `s390x` or other IBM zSystem-based systems
