@@ -10,23 +10,23 @@ docker pull archivebox/archivebox
 #### ✅ Platforms Supported
 
 - `amd64` all x86 64-bit Intel/AMD processors
-- `arm64v8` Raspberry Pi v4+, M1 or newer Macs, and other newer ARM-based systems (>= ARM v8)
-- `arm32v7` Raspberry Pi v1 - v3 and other 32-bit ARM-based systems (as of v0.6, but support will be phased out in the future)
+- `arm64` Raspberry Pi v4+, M1/M2/M3 or newer Macs, and other newer ARM-based systems (>= ARM v8)
+- `arm/v7` Raspberry Pi v1 - v3 and other 32-bit ARM-based systems (as of v0.7, but support will be phased out in the future)
 
 #### ❌ Platforms _NOT_ Supported
 
 - `i386` all x86 **32-bit** Intel/AMD processors
-- `arm32v6`/`arm32v5` or earlier pre-2006 32-bit ARM-based systems
+- `arm/v6`/`arm/v5` or earlier pre-2006 32-bit ARM-based systems
 - `riscv64`/`riscv32` or other RISC-V-based systems
 - `ppc64le`/`ppc32` or other PowerPC-based systems
 - `s390x` or other IBM zSystem-based systems
 
 #### Tags available
 
-It's recommended to use either `:master` (stable, all architectures) or `:dev` (beta/unstable).
+It's recommended to use either `:main` (stable, all architectures) or `:dev` (beta/unstable).
 
 - `:latest` (the default stable tag, 1:1 with `:master`, only built for `amd64`)
-- `:dev`/`:master`/`:<branchname>` (tags for each git branch, built for `amd64`, `arm64`, `arm/v7`)
+- `:dev`/`:main`/`:<branchname>` (tags for each git branch, built for `amd64`, `arm64`, `arm/v7`)
 - `sha-2c7be14`/`:sha-<commitid>` (tags for each git commit, built for `amd64`, `arm64`, `arm/v7`)
 
 *For a full list of the published images: https://hub.docker.com/r/archivebox/archivebox/tags*
