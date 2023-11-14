@@ -3,17 +3,30 @@
 The official Docker image for [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox), the self-hosted internet archiving solution.
 
 https://hub.docker.com/r/archivebox/archivebox
+
 ```bash
+# using Docker:
 docker pull archivebox/archivebox
+docker run -v $PWD:/data -it archivebox/archivebox init --setup
+
+# using Docker Compose
+curl -fsSL 'https://github.com/ArchiveBox/ArchiveBox/raw/dev/docker-compose.yml' > docker-compose.yml
+docker compose up
 ```
 
-#### ✅ Platforms Supported
+#### ✅ Operating Systems Supported
+
+**Linux, macOS, Windows**  
+  
+*Any OS where [Docker](https://docs.docker.com/engine/install/) or [Docker Desktop](https://docs.docker.com/get-docker/) is supported.*
+
+#### ✅ CPU Architectures Supported
 
 - `amd64` all x86 64-bit Intel/AMD processors
 - `arm64` Raspberry Pi v4+, M1/M2/M3 or newer Macs, and other newer ARM-based systems (>= ARM v8)
 - `arm/v7` Raspberry Pi v1 - v3 and other 32-bit ARM-based systems (as of v0.7, but support will be phased out in the future)
 
-#### ❌ Platforms _NOT_ Supported
+#### ❌ CPU Architectures _NOT_ Supported
 
 - `i386` all x86 **32-bit** Intel/AMD processors
 - `arm/v6`/`arm/v5` or earlier pre-2006 32-bit ARM-based systems
@@ -32,7 +45,6 @@ It's recommended to use either `:main` (stable, all architectures) or `:dev` (be
 *For a full list of the published images: https://hub.docker.com/r/archivebox/archivebox/tags*
 
 <img width="500px" alt="Docker Hub Screenshot" src="https://user-images.githubusercontent.com/511499/147287184-6f1201f8-6827-4002-a6a3-3aae7eb859d4.png">
-
 
 
 ## Docker
@@ -78,6 +90,8 @@ services:
             - ./data:/data
 ```
 
+See a full setup here: https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml
+
 #### Usage
 
 ```bash
@@ -94,7 +108,7 @@ docker-compose run archivebox add --depth=1 'https://example.com'
 ...
 ```
 
-To enable Sonic full-text search backend and other optional extras, see: https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml#L30
+To enable Sonic full-text search backend and other optional extras, see: https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml#:~:text=sonic
 
 ---
 
@@ -139,9 +153,8 @@ spec:
             claimName: archivebox
 ```
 
-#### Usage
-
 ```bash
+# run this to apply the configuration
 kubectl apply -f archivebox.yml
 ```
 
@@ -166,10 +179,10 @@ git pull --recurse-submodules
 
 # Push the image to Docker Hub & Github Packages
 docker login
-./bin/release.sh
+./bin/release_docker.sh 0.7.1 arm7 
 ```
 
-**Inspecting the image:**
+### Inspecting the image layers
 
 ```bash
 docker image ls archivebox/archivebox
