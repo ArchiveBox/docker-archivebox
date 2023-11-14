@@ -53,6 +53,7 @@ It's recommended to use either `:main` (stable, all architectures) or `:dev` (be
 mkdir ~/archivebox && cd ~/archivebox  # data folder can be anywhere
 docker pull archivebox/archivebox
 docker run -v $PWD:/data -it archivebox/archivebox init --setup
+docker run -v $PWD:/data -it -p 8000:8000 archivebox/archivebox server --quick-init 0.0.0.0:8000
 ```
 
 #### Usage
@@ -72,8 +73,17 @@ open http://127.0.0.1:8000
 
 ## Docker Compose
 
+```bash
+curl -fsSL 'https://github.com/ArchiveBox/ArchiveBox/raw/dev/docker-compose.yml' > docker-compose.yml
+```
+
 **`docker-compose.yml`:**
 ```yaml
+
+# SIMPLE EXAMPLE
+# see more complete setup here:
+# https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml
+
 version: '3.9'
 
 services:
@@ -89,8 +99,6 @@ services:
         volumes:
             - ./data:/data
 ```
-
-See a full setup here: https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml
 
 #### Usage
 
