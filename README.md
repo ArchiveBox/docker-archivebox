@@ -122,7 +122,7 @@ To enable Sonic full-text search backend and other optional extras, see: https:/
 
 ## Kubernetes
 
-(BETA: Advanced users only, ArchiveBox does not provide support for Kubernetes users)
+(BETA: Advanced users only, ArchiveBox does not test releases on Kubernetes, but it should work in theory)
 
 [`./archivebox.yml`](https://github.com/ArchiveBox/docker-archivebox/blob/master/archivebox.yml) contains an example Kubernetes manifest (with `rook-ceph-rbd` and `metallb`).
 
