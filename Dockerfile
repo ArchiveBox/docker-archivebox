@@ -218,6 +218,21 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked,id=npm-$TARGETARCH$TARGE
         && echo -e '\n\n' \
     ) | tee -a /VERSION.txt
 
+######### Install Browser History Dependencies ##################
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-$TARGETARCH$TARGETVARIANT --mount=type=cache,target=/root/.cache/pip,sharing=locked,id=pip-$TARGETARCH$TARGETVARIANT \
+    echo "[+] Installing Browser History script dependencies..." \
+    && apt-get update -qq \
+    && apt-get install -qq -y -t bookworm-backports --no-install-recommends \
+        sqlite3 jq \
+    && rm -rf /var/lib/apt/lists/* \
+    # Save version info
+    && ( \
+        which sqlite3 && sqlite3 --version \
+        && which jq && jq --version \
+        && echo -e '\n\n' \
+    ) | tee -a /VERSION.txt
+
+
 ######### Build Dependencies ####################################
 
 # Install ArchiveBox Python dependencies
