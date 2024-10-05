@@ -31,16 +31,14 @@ docker run -v $PWD:/data -it archivebox/archivebox init
 #### ✅ CPU Architectures Supported
 
 - `amd64` all x86 64-bit Intel/AMD processors
-- `arm64` Raspberry Pi v4+, M1/M2/M3 or newer Macs, and other newer ARM-based systems (>= ARM v8)
-- `arm/v7` Raspberry Pi v1 - v3 and other 32-bit ARM-based systems (as of v0.7, but support will be phased out in the future)
+- `arm64`/`aarch64` Raspberry Pi v4+, M1/M2/M3 or newer Macs, and other newer ARM-based systems (>= ARM v8)
 
 #### ❌ CPU Architectures _NOT_ Supported
 
+- `arm/v7` Raspberry Pi v1 - v3 and other older ARM systems (previously supported up until v0.7.0)
 - `i386` all x86 **32-bit** Intel/AMD processors
 - `arm/v6`/`arm/v5` or earlier pre-2006 32-bit ARM-based systems
-- `riscv64`/`riscv32` or other RISC-V-based systems
-- `ppc64le`/`ppc32` or other PowerPC-based systems
-- `s390x` or other IBM zSystem-based systems
+- `riscv64`/`riscv32`/`ppc64le`/`ppc32`/`s390x` or other architectures
 
 #### Tags available
 
