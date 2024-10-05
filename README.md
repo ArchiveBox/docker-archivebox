@@ -9,12 +9,12 @@ docker pull archivebox/archivebox
 
 # using Docker Compose
 mkdir -p ~/archivebox/data && cd ~/archivebox
-curl -fsSL 'https://github.com/ArchiveBox/ArchiveBox/raw/dev/docker-compose.yml' > docker-compose.yml
+curl -fsSL 'https://docker-compose.archivebox.io' > docker-compose.yml
 docker compose up
 
 # using Docker:
 mkdir -p ~/archivebox/data && cd ~/archivebox/data
-docker run -v $PWD:/data -it archivebox/archivebox init --setup
+docker run -v $PWD:/data -it archivebox/archivebox init
 ```
 
 - [`Dockerfile`](https://github.com/ArchiveBox/ArchiveBox/blob/main/Dockerfile)
@@ -54,77 +54,24 @@ It's recommended to use either `:main` (stable, all architectures) or `:dev` (be
 
 <img width="500px" alt="Docker Hub Screenshot" src="https://user-images.githubusercontent.com/511499/147287184-6f1201f8-6827-4002-a6a3-3aae7eb859d4.png">
 
-
-## Docker
-
-```bash
-mkdir ~/archivebox && cd ~/archivebox  # data folder can be anywhere
-docker pull archivebox/archivebox
-docker run -v $PWD:/data -it archivebox/archivebox init --setup
-docker run -v $PWD:/data -it -p 8000:8000 archivebox/archivebox server --quick-init 0.0.0.0:8000
-```
-
-#### Usage
-
-```bash
-# docker run -v $PWD:/data -it archivebox/archivebox [subcommand] [...args]
-
-docker run -v $PWD:/data -it archivebox/archivebox version
-docker run -v $PWD:/data -it archivebox/archivebox init --setup
-docker run -v $PWD:/data -it archivebox/archivebox add 'https://example.com'
-docker run -v $PWD:/data -it -p 8000:8000 archivebox/archivebox server 0.0.0.0:8000
-
-open http://127.0.0.1:8000
-```
-
 ---
 
-## Docker Compose
-
-```bash
-curl -fsSL 'https://github.com/ArchiveBox/ArchiveBox/raw/dev/docker-compose.yml' > docker-compose.yml
-```
-
-**`docker-compose.yml`:**
+See full [`docker-compose.yml`](https://github.com/ArchiveBox/ArchiveBox/blob/main/docker-compose.yml) and the [Docker ArchiveBox docs](https://github.com/ArchiveBox/ArchiveBox/wiki/Docker) for more complete examples and documentation.
 ```yaml
-
-# SIMPLE EXAMPLE
-# see more complete setup here:
-# https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml
-
-version: '3.9'
-
 services:
     archivebox:
-        image: 'archivebox/archivebox:dev'
-        command: server --quick-init 0.0.0.0:8000
+        image: archivebox/archivebox:dev
         ports:
             - 8000:8000
         environment:
             # add any ArchiveBox config options you want here
-            - ALLOWED_HOSTS=*
+            - ALLOWED_HOSTS=archivebox.example.com
+            - ADMIN_USERNAME=admin
+            - ADMIN_PASSWORD=...
             - MEDIA_MAX_SIZE=750m
         volumes:
             - ./data:/data
 ```
-
-#### Usage
-
-```bash
-mkdir ~/archivebox && cd ~/archivebox
-# create docker-compose.yml file in ~/archivebox
-docker compose pull
-docker compose up
-
-# docker compose run archivebox [subcommand] [...args]
-
-docker compose run archivebox version
-docker compose run archivebox setup --init
-docker compose run archivebox add --depth=1 'https://example.com'
-...
-```
-
-To enable Sonic full-text search backend and other optional extras, see: https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml#:~:text=sonic
 
 ---
 
@@ -195,7 +142,7 @@ git pull --recurse-submodules
 
 # Push the image to Docker Hub & Github Packages
 docker login
-./bin/release_docker.sh 0.7.1 arm7 
+./bin/release_docker.sh 0.7.1 latest
 ```
 
 ### Inspecting the image layers
