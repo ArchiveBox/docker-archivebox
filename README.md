@@ -113,14 +113,14 @@ services:
 ```bash
 mkdir ~/archivebox && cd ~/archivebox
 # create docker-compose.yml file in ~/archivebox
-docker-compose pull
-docker-compose up
+docker compose pull
+docker compose up
 
-# docker-compose run archivebox [subcommand] [...args]
+# docker compose run archivebox [subcommand] [...args]
 
-docker-compose run archivebox version
-docker-compose run archivebox setup --init
-docker-compose run archivebox add --depth=1 'https://example.com'
+docker compose run archivebox version
+docker compose run archivebox setup --init
+docker compose run archivebox add --depth=1 'https://example.com'
 ...
 ```
 
