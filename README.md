@@ -42,11 +42,11 @@ docker run -v $PWD:/data -it archivebox/archivebox init
 
 #### Tags available
 
-It's recommended to use either `:main` (stable, all architectures) or `:dev` (beta/unstable).
+It's recommended to use `:latest` (stable, cross-platform build for all supported architectures)
 
-- `:latest` (the default stable tag, 1:1 with `:master`, only built for `amd64`)
-- `:dev`/`:main`/`:<branchname>` (tags for each git branch, built for `amd64`, `arm64`, `arm/v7`)
-- `sha-2c7be14`/`:sha-<commitid>` (tags for each git commit, built for `amd64`, `arm64`, `arm/v7`)
+- `:latest` (the default stable tag, 1:1 with `:stable`/`:master`)
+- `:dev`/`:main`/`:<branchname>` (tags for each git branch, use these to try a BETA or specific PR)
+- `sha-2c7be14`/`:sha-<commitid>` (tags for each git commit, use these to pin an exact codebase version)
 
 *For a full list of the published images: https://hub.docker.com/r/archivebox/archivebox/tags*
 
