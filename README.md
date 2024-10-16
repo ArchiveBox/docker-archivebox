@@ -17,28 +17,10 @@ mkdir -p ~/archivebox/data && cd ~/archivebox/data
 docker run -v $PWD:/data -it archivebox/archivebox init
 ```
 
-- [`Dockerfile`](https://github.com/ArchiveBox/ArchiveBox/blob/main/Dockerfile)
+- [`Dockerfile`](https://github.com/ArchiveBox/ArchiveBox/blob/main/Dockerfile) or [`Dockerfile.simple`](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile.simple)
 - [`docker-compose.yml`](https://github.com/ArchiveBox/ArchiveBox/blob/main/docker-compose.yml)
 - [`archivebox-kubernetes.yml`](https://github.com/ArchiveBox/docker-archivebox/blob/master/archivebox.yml)
 - [ArchiveBox Docker Quickstart](https://github.com/ArchiveBox/ArchiveBox#quickstart) + [Usage](https://github.com/ArchiveBox/ArchiveBox/wiki/Docker) + [Configuration](https://github.com/ArchiveBox/ArchiveBox/wiki/Docker#configuration) + [Upgrading](https://github.com/ArchiveBox/ArchiveBox/wiki/Upgrading-or-Merging-Archives) documentation
-
-#### ✅ Operating Systems Supported
-
-**Linux, macOS, Windows**  
-  
-*Any OS where [Docker](https://docs.docker.com/engine/install/) or [Docker Desktop](https://docs.docker.com/get-docker/) is supported.*
-
-#### ✅ CPU Architectures Supported
-
-- `amd64` all x86 64-bit Intel/AMD processors
-- `arm64`/`aarch64` Raspberry Pi v4+, M1/M2/M3 or newer Macs, and other newer ARM-based systems (>= ARM v8)
-
-#### ❌ CPU Architectures _NOT_ Supported
-
-- `arm/v7` Raspberry Pi v1 - v3 and other older ARM systems (previously supported up until v0.7.0)
-- `i386` all x86 **32-bit** Intel/AMD processors
-- `arm/v6`/`arm/v5` or earlier pre-2006 32-bit ARM-based systems
-- `riscv64`/`riscv32`/`ppc64le`/`ppc32`/`s390x` or other architectures
 
 #### Tags available
 
@@ -51,6 +33,24 @@ It's recommended to use `:latest` (stable, cross-platform build for all supporte
 *For a full list of the published images: https://hub.docker.com/r/archivebox/archivebox/tags*
 
 <img width="500px" alt="Docker Hub Screenshot" src="https://user-images.githubusercontent.com/511499/147287184-6f1201f8-6827-4002-a6a3-3aae7eb859d4.png">
+
+
+#### ✅ Operating Systems Supported
+
+**Linux, macOS, Windows**  
+  
+*Any OS where [Docker](https://docs.docker.com/engine/install/) or [Docker Desktop](https://docs.docker.com/get-docker/) is supported.*
+
+#### ✅ CPU Architectures Supported
+
+- `amd64` all x86 64-bit Intel/AMD processors
+- `arm64`/`aarch64` Raspberry Pi v4+, M1 or newer Macs, and newer ARM-based systems (>= ARM v8)
+
+#### ❌ CPU Architectures _NOT_ Supported
+
+- `i386` x86 **32-bit** Intel/AMD processors
+- `arm/v7`/`arm/v6`/`arm/v5` Raspberry Pi v3 and older ARM systems
+- `riscv64`/`riscv32`/`ppc64le`/`ppc32`/`s390x` or other architectures
 
 ---
 
@@ -75,7 +75,7 @@ services:
 
 ---
 
-## Usage in a Dockerfile
+## Dockerfile Usage
 
 ```Dockerfile
 FROM python:3.12-slim
@@ -90,7 +90,7 @@ RUN useradd -ms /bin/bash archivebox && chown -R archivebox /data
 
 See more:
 
-- [`Dockerfile`](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile): Full production-ready Dockerfile with optimized build caching and layer sizes
+- [`Dockerfile`](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile): Full production-ready image with optimized build caching and layer sizes
 - [`Dockerfile.simple`](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile): Simple example of how to add ArchiveBox to your own Dockerfile
 
 ---
