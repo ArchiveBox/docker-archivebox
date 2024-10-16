@@ -54,6 +54,8 @@ It's recommended to use `:latest` (stable, cross-platform build for all supporte
 
 ---
 
+## Docker Compose Usage
+
 See full [`docker-compose.yml`](https://github.com/ArchiveBox/ArchiveBox/blob/main/docker-compose.yml) and the [Docker ArchiveBox docs](https://github.com/ArchiveBox/ArchiveBox/wiki/Docker) for more complete examples and documentation.
 ```yaml
 services:
@@ -70,6 +72,26 @@ services:
         volumes:
             - ./data:/data
 ```
+
+---
+
+## Usage in a Dockerfile
+
+```Dockerfile
+FROM python:3.12-slim
+
+WORKDIR /data
+RUN pip install archivebox==0.8.5rc44
+RUN archivebox install
+
+RUN useradd -ms /bin/bash archivebox && chown -R archivebox /data
+```
+*(replace `0.8.5rc44` with [latest release](https://github.com/ArchiveBox/ArchiveBox/releases))*
+
+See more:
+
+- [`Dockerfile`](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile): Full production-ready Dockerfile with optimized build caching and layer sizes
+- [`Dockerfile.simple`](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile): Simple example of how to add ArchiveBox to your own Dockerfile
 
 ---
 
