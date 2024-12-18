@@ -77,21 +77,21 @@ services:
 
 ## Dockerfile Usage
 
+To use ArchiveBox in your own `Dockerfile`, add the following to it:
 ```Dockerfile
 FROM python:3.12-slim
 
 WORKDIR /data
-RUN pip install archivebox==0.8.5rc44
+RUN pip install archivebox==0.8.5rc51
 RUN archivebox install
 
 RUN useradd -ms /bin/bash archivebox && chown -R archivebox /data
 ```
-*(replace `0.8.5rc44` with [latest release](https://github.com/ArchiveBox/ArchiveBox/releases))*
+*(replace `0.8.5rc51` with [latest release](https://github.com/ArchiveBox/ArchiveBox/releases))*
 
 See more:
 
 - [`Dockerfile`](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile): Full production-ready image with optimized build caching and layer sizes
-- [`Dockerfile.simple`](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile): Simple example of how to add ArchiveBox to your own Dockerfile
 
 ---
 
