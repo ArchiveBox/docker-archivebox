@@ -12,7 +12,6 @@ metadata:
   name: archivebox
   namespace: archivebox
 spec:
-  storageClassName: rook-ceph-block
   accessModes:
     - ReadWriteOnce
   resources:
