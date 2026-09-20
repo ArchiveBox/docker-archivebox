@@ -13,8 +13,9 @@
 services:
     archivebox:
         image: archivebox/archivebox:latest
+        command: server --init 0.0.0.0:5797
         ports:
-            - 8000:8000
+            - 5797:5797
         volumes:
             - ./data:/data
             # ./data/personas/Default/chrome_profile/Default:/data/personas/Default/chrome_profile/Default

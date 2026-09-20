@@ -45,10 +45,10 @@ spec:
             name: archivebox
       containers:
         - name: archivebox
-          args: ["server", "--quick-init", "0.0.0.0:8000"]
+          args: ["server", "--quick-init", "0.0.0.0:5797"]
           image: archivebox/archivebox
           ports:
-            - containerPort: 8000
+            - containerPort: 5797
               protocol: TCP
               name: http
           resources:
@@ -72,7 +72,7 @@ metadata:
 spec:
   ports:
     - name: http
-      port: 8000
+      port: 5797
   selector:
     app: archivebox
   type: LoadBalancer

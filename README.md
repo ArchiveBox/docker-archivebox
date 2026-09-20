@@ -61,8 +61,9 @@ See full [`docker-compose.yml`](https://github.com/ArchiveBox/ArchiveBox/blob/ma
 services:
     archivebox:
         image: archivebox/archivebox:dev
+        command: server --init 0.0.0.0:5797
         ports:
-            - 8000:8000
+            - 5797:5797
         environment:
             # add any ArchiveBox config options you want here
             - ALLOWED_HOSTS=archivebox.example.com
@@ -120,10 +121,10 @@ spec:
     spec:
       containers:
         - name: archivebox
-          args: ["server", "--quick-init", "0.0.0.0:8000"]
+          args: ["server", "--quick-init", "0.0.0.0:5797"]
           image: archivebox/archivebox
           ports:
-            - containerPort: 8000
+            - containerPort: 5797
               protocol: TCP
               name: http
           volumeMounts:
