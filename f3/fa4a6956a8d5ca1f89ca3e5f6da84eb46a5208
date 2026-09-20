@@ -1,0 +1,18 @@
+README.md
+  h_923c208e183a7b 64,66,124,127
+archivebox.yml
+  h_923c208e183a7b 48,51,75
+docker-compose.yml
+  h_923c208e183a7b 16,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f3fa4a6956a8d5ca1f89ca3e5f6da84eb46a5208",
+  "prompts": {},
+  "humans": {
+    "h_923c208e183a7b": {
+      "author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
