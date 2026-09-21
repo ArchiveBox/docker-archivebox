@@ -7,17 +7,16 @@ metadata:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app: archivebox
   name: archivebox
   namespace: archivebox
 spec:
-  storageClassName: rook-ceph-block
+  # Uses the cluster's default StorageClass. Choose reliable block-backed storage;
+  # do not put the SQLite database on NFS/SMB. Adjust capacity for your archive.
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
+      storage: 20Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -25,44 +24,67 @@ metadata:
   name: archivebox
   namespace: archivebox
 spec:
+  replicas: 1
+  # One server/orchestrator owns the collection; stop it before replacing it.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: archivebox
-  replicas: 1
-  strategy:
-    type: Recreate
   template:
     metadata:
       labels:
         app: archivebox
     spec:
-      initContainers:
-      - name: init-archivebox
-        image: archivebox/archivebox:dev
-        args: ['init']
-        volumeMounts:
-          - mountPath: /data
-            name: archivebox
+      terminationGracePeriodSeconds: 60
       containers:
         - name: archivebox
-          args: ["server", "--quick-init", "0.0.0.0:5797"]
           image: archivebox/archivebox:dev
+          imagePullPolicy: Always
+          # Inherit the image's server --init command and privilege-dropping entrypoint.
           ports:
             - containerPort: 5797
-              protocol: TCP
               name: http
+          env:
+            - name: PUBLIC_ADD_VIEW
+              value: "False"
+            # Set BASE_URL and SERVER_SECURITY_MODE here to override the setup wizard.
           resources:
             requests:
               cpu: 250m
-              memory: 512Mi
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /health/
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: admin.archivebox.localhost
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: admin.archivebox.localhost
+            periodSeconds: 10
+            timeoutSeconds: 5
           volumeMounts:
-            - mountPath: /data
-              name: archivebox
-      restartPolicy: Always
+            - name: archivebox
+              mountPath: /data
+            - name: shm
+              mountPath: /dev/shm
       volumes:
         - name: archivebox
           persistentVolumeClaim:
             claimName: archivebox
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
 ---
 apiVersion: v1
 kind: Service
@@ -70,9 +92,10 @@ metadata:
   name: archivebox
   namespace: archivebox
 spec:
+  type: ClusterIP
+  selector:
+    app: archivebox
   ports:
     - name: http
       port: 5797
-  selector:
-    app: archivebox
-  type: LoadBalancer
+      targetPort: http
