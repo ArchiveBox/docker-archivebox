@@ -12,7 +12,7 @@
 
 services:
     archivebox:
-        image: archivebox/archivebox:latest
+        image: archivebox/archivebox:dev
         command: server --init 0.0.0.0:5797
         ports:
             - 5797:5797
@@ -57,7 +57,7 @@ services:
 
     archivebox_scheduler:
         
-        image: archivebox/archivebox:latest
+        image: archivebox/archivebox:dev
         command: schedule --foreground --update --every=day
         environment:
             - TIMEOUT=120                       # use a higher timeout than the main container to give slow tasks more time when retrying

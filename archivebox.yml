@@ -38,7 +38,7 @@ spec:
     spec:
       initContainers:
       - name: init-archivebox
-        image: archivebox/archivebox
+        image: archivebox/archivebox:dev
         args: ['init']
         volumeMounts:
           - mountPath: /data
@@ -46,7 +46,7 @@ spec:
       containers:
         - name: archivebox
           args: ["server", "--quick-init", "0.0.0.0:5797"]
-          image: archivebox/archivebox
+          image: archivebox/archivebox:dev
           ports:
             - containerPort: 5797
               protocol: TCP
