@@ -57,10 +57,13 @@ sudo systemctl enable --now archivebox-dev-image.timer
 ```
 
 The timer checks every two minutes, preserves Compose overrides, and recreates
-only the ArchiveBox service when its image changes. It waits for the container's
-healthcheck; inspect failures with `journalctl -u archivebox-dev-image.service`.
-Adjust the service's `WorkingDirectory` for a different deployment location.
-Use this for deployments intended to track development builds automatically.
+only the ArchiveBox service when its image changes. Before pulling and after
+recreating, it removes only dangling images labeled with ArchiveBox's canonical
+source URL; tagged images and images referenced by containers are retained. It
+then waits for the container's healthcheck. Inspect failures with
+`journalctl -u archivebox-dev-image.service`. Adjust the service's
+`WorkingDirectory` for a different deployment location. Use this for deployments
+intended to track development builds automatically.
 
 The single `./data:/data` bind mount includes:
 

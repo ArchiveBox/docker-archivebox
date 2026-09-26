@@ -10,9 +10,14 @@ WorkingDirectory=/opt/archivebox
 # Use the deployment's normal Compose files, including its override. Replacing
 # the override here would lose resource limits, mounts, and the public URL.
 # Pull first: a registry failure must leave the existing server running.
+# Retain only tagged/referenced images; discard prior dangling ArchiveBox builds
+# before a pull so a full Docker root cannot prevent the new image downloading.
+ExecStartPre=/usr/bin/docker image prune --force --filter dangling=true --filter label=org.opencontainers.image.source=https://github.com/ArchiveBox/ArchiveBox
 ExecStart=/usr/bin/docker compose pull archivebox
-# Compose recreates the server only when its image/config changed. Waiting for
-# the image's healthcheck makes a broken rollout a failed unit, visible in logs.
+# Recreate first, then remove the now-dangling prior image before health checks
+# and startup finish, so a full root filesystem cannot trap the new app in a loop.
+ExecStart=/usr/bin/docker compose up -d --no-deps archivebox
+ExecStart=/usr/bin/docker image prune --force --filter dangling=true --filter label=org.opencontainers.image.source=https://github.com/ArchiveBox/ArchiveBox
+# Waiting for the image's healthcheck makes a broken rollout a failed unit.
 ExecStart=/usr/bin/docker compose up -d --no-deps --wait archivebox
 TimeoutStartSec=15min
-
