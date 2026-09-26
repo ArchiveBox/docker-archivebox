@@ -1,0 +1,18 @@
+[Unit]
+Description=Update ArchiveBox to the published dev Docker image
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/archivebox
+# Use the deployment's normal Compose files, including its override. Replacing
+# the override here would lose resource limits, mounts, and the public URL.
+# Pull first: a registry failure must leave the existing server running.
+ExecStart=/usr/bin/docker compose pull archivebox
+# Compose recreates the server only when its image/config changed. Waiting for
+# the image's healthcheck makes a broken rollout a failed unit, visible in logs.
+ExecStart=/usr/bin/docker compose up -d --no-deps --wait archivebox
+TimeoutStartSec=15min
+

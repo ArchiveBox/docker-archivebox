@@ -45,6 +45,23 @@ docker exec -it archivebox archivebox status
 
 ## Persistent data and configuration
 
+### Automatically follow the dev image on Linux
+
+For a test deployment in `/opt/archivebox` using `archivebox/archivebox:dev`, install
+the [systemd service](systemd/archivebox-dev-image.service) and
+[timer](systemd/archivebox-dev-image.timer) in `/etc/systemd/system/`, then run:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now archivebox-dev-image.timer
+```
+
+The timer checks every two minutes, preserves Compose overrides, and recreates
+only the ArchiveBox service when its image changes. It waits for the container's
+healthcheck; inspect failures with `journalctl -u archivebox-dev-image.service`.
+Adjust the service's `WorkingDirectory` for a different deployment location.
+Use this for deployments intended to track development builds automatically.
+
 The single `./data:/data` bind mount includes:
 
 | Path | Contents |

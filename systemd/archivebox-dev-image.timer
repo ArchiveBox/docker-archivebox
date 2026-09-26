@@ -1,0 +1,10 @@
+[Unit]
+Description=Follow ArchiveBox dev Docker releases
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=2min
+Unit=archivebox-dev-image.service
+
+[Install]
+WantedBy=timers.target
