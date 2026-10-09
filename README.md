@@ -116,6 +116,16 @@ rclone mount archivebox-s3:BUCKET/archive /mnt/archivebox-archive \
 
 Run this under a service manager with a persistent local VFS cache; match UID/GID to your collection. Start the mount before ArchiveBox and verify it is mounted after host restarts. Docker Desktop runs its daemon in a VM, so a host FUSE mount is not automatically equivalent to a Linux Docker-host mount.
 
+For systemd, use `Type=notify` so rclone signals readiness only after its VFS cache
+has loaded. Install [rclone-mount-readiness.conf](systemd/rclone-mount-readiness.conf)
+as `/etc/systemd/system/YOUR-MOUNT.service.d/readiness.conf`, then run
+`systemctl daemon-reload`. Large caches can take longer than systemd's default
+90-second startup deadline to scan; repeatedly killing that scan prevents the
+mount from ever becoming ready. This drop-in lets the scan finish without a fixed
+startup deadline. Keep the ArchiveBox service ordered after and dependent on the
+mount, and keep its mountpoint check; never start captures on the empty directory
+underneath an unready mount. Inspect startup with `journalctl -u YOUR-MOUNT.service`.
+
 Add this entry alongside the existing `/data` and `/tmp/archivebox` volumes:
 
 ```yaml
