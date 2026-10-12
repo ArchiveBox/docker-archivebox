@@ -1,0 +1,150 @@
+storage:
+  type: sqlite
+  path: /data/gatus.db
+  maximum-number-of-results: 100
+  maximum-number-of-events: 500
+ui:
+  title: ArchiveBox Status
+  header: ArchiveBox
+  link: https://archivebox.io
+  dashboard-heading: ArchiveBox service status
+  dashboard-subheading: "Checked every minute from Cabbage. Open a service for latency and uptime history (7d / 30d). History begins October 12, 2026."
+  default-sort-by: group
+  buttons:
+    - name: "Cabbage: deployed commit, branch heads & disk space"
+      link: /deployment.html
+    - name: GitHub
+      link: https://github.com/ArchiveBox/ArchiveBox
+endpoints:
+  - name: API health
+    group: ArchiveBox
+    url: https://api.archivebox.io/health/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[BODY] == OK", "[RESPONSE_TIME] < 10000"]
+  - name: Website
+    group: ArchiveBox
+    url: https://archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Public archive
+    group: ArchiveBox
+    url: https://web.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 15000"]
+  - name: Documentation
+    group: ArchiveBox
+    url: https://docs.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Admin health
+    group: ArchiveBox
+    url: https://admin.archivebox.io/health/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[BODY] == OK"]
+  - name: Demo health
+    group: ArchiveBox
+    url: https://demo.archivebox.io/health/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[BODY] == OK"]
+  - name: Chat bot
+    group: ArchiveBox
+    url: https://chatbot.archivebox.io/healthz
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[BODY].ok == true"]
+  - name: TLSNotary
+    group: ArchiveBox
+    url: https://tlsnotary.archivebox.io/health
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Image hosting
+    group: Cabbage services
+    url: https://imgur.zervice.io/00VKXsVh.jpg
+    interval: 1m
+    conditions: ["[STATUS] == 200"]
+  - name: Brittany Sweeting
+    group: Cabbage services
+    url: https://brittanysweeting.com/
+    interval: 1m
+    conditions: ["[STATUS] == 200"]
+  - name: IRC
+    group: Cabbage services
+    url: tcp://100.66.141.33:16667
+    interval: 1m
+    conditions: ["[CONNECTED] == true"]
+  - name: IRC web client
+    group: Cabbage services
+    url: http://100.66.141.33:19001/
+    interval: 1m
+    ui:
+      hide-url: true
+      hide-hostname: true
+    conditions: ["[STATUS] == 200"]
+  - name: Disk free
+    group: Cabbage
+    url: http://nginx/deployment.json
+    interval: 1m
+    ui:
+      hide-url: true
+      resolve-successful-conditions: true
+    conditions: ["[STATUS] == 200", "[BODY].disk.available_gib > 10", "[BODY].disk.free_percent > 10"]
+  - name: Zulip
+    group: ArchiveBox
+    url: https://zulip.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Installer
+    group: Downloads and packages
+    url: https://get.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Docker Compose
+    group: Downloads and packages
+    url: https://docker-compose.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Demo website
+    group: ArchiveBox
+    url: https://demo.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: App
+    group: ArchiveBox
+    url: https://app.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: abxbus
+    group: Downloads and packages
+    url: https://abxbus.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: abxpkg
+    group: Downloads and packages
+    url: https://abxpkg.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: abx-dl
+    group: Downloads and packages
+    url: https://abx-dl.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Swag
+    group: ArchiveBox
+    url: https://swag.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: DigestBox
+    group: Other services
+    url: https://digestbox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Sweeting
+    group: Other services
+    url: https://sweeting.me/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+external-endpoints:
+  - name: Deployment collector
+    group: Cabbage
+    token: "${COLLECTOR_TOKEN}"
+    heartbeat:
+      interval: 3m

@@ -1,0 +1,9 @@
+[Unit]
+Description=Collect public ArchiveBox deployment and Cabbage disk metadata
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/archivebox.status/collect.sh
+TimeoutStartSec=120

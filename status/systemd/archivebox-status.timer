@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh ArchiveBox status metadata every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ArchiveBox · Cabbage deployment</title>
+<style>
+:root{color-scheme:light dark;font:16px/1.6 system-ui}body{max-width:960px;margin:48px auto;padding:0 24px}a{color:#478eff}h1{line-height:1.2}section{border:1px solid #8885;border-radius:12px;padding:24px;margin:20px 0}code{overflow-wrap:anywhere}table{width:100%;text-align:left}td,th{padding:10px 10px 10px 0;vertical-align:top}.muted{color:#888}.bad{color:#e76d53}progress{width:100%;height:20px}
+</style>
+<a href="/">← Service status & latency charts</a>
+<h1>Cabbage deployment</h1><p id="freshness">Loading current deployment…</p>
+<section><h2>ArchiveBox running now</h2><p id="commit"></p><p id="version"></p><small id="image" class="muted"></small></section>
+<section><h2>GitHub branch comparison</h2><table><thead><tr><th>Branch</th><th>Head commit</th><th>Server relative to head</th></tr></thead><tbody id="branches"></tbody></table><p id="branch-time" class="muted"></p></section>
+<section><h2>Cabbage disk space</h2><p id="disk"></p><progress id="disk-bar" max="100"></progress><p class="muted">Root filesystem (/). The status check fails below 10 GiB or 10% available.</p></section>
+<p class="muted">Host metadata refreshes every minute; GitHub comparisons every 10 minutes and after a deployment. Revision comes from the running container's OCI image label. Monitoring is hosted on Cabbage, so a full host outage also takes this page offline.</p>
+<script>
+const repo='https://github.com/ArchiveBox/ArchiveBox';
+function link(sha){const a=document.createElement('a');a.href=`${repo}/commit/${sha}`;a.textContent=sha;const c=document.createElement('code');c.append(a);return c}
+let latest;
+function freshness(){if(!latest)return;const age=Math.floor(Date.now()/1000-latest.updated_at);const el=document.querySelector('#freshness');el.textContent=`Updated ${new Date(latest.updated_at*1000).toLocaleString()} · ${age}s ago${age>180?' — STALE: collector is not updating':''}`;el.className=age>180?'bad':'muted'}
+async function refresh(){try{const r=await fetch('/deployment.json',{cache:'no-store'});if(!r.ok)throw Error(`HTTP ${r.status}`);const d=await r.json();latest=d;freshness();document.querySelector('#commit').replaceChildren(link(d.deployed));document.querySelector('#version').textContent=`Version ${d.version}`;document.querySelector('#image').textContent=`Image ${d.image}`;const rows=document.querySelector('#branches');rows.replaceChildren();for(const name of ['dev','main']){const b=d.branches[name],tr=document.createElement('tr');for(let i=0;i<3;i++)tr.append(document.createElement('td'));tr.children[0].textContent=name;if(b.error){tr.children[1].textContent='Unknown';tr.children[2].textContent=b.error;}else{tr.children[1].append(link(b.head));const a=document.createElement('a');a.href=`${repo}/compare/${d.deployed}...${b.head}`;a.textContent=b.behind===0&&b.ahead===0?'Up to date':`${b.behind} commits behind · ${b.ahead} commits ahead${b.status==='diverged'?' (diverged)':''}`;tr.children[2].append(a)}rows.append(tr)}document.querySelector('#branch-time').textContent=`GitHub checked ${new Date(d.branches.checked_at*1000).toLocaleString()}`;document.querySelector('#disk').textContent=`${d.disk.available_gib} GiB available / ${(d.disk.total_bytes/1073741824).toFixed(1)} GiB · ${d.disk.free_percent}% free`;document.querySelector('#disk-bar').value=100-d.disk.free_percent}catch(e){document.querySelector('#freshness').textContent=`Unable to refresh metadata: ${e.message}`;document.querySelector('#freshness').className='bad'}}
+refresh();setInterval(refresh,60000);setInterval(freshness,1000);
+</script></html>

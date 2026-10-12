@@ -1,0 +1,32 @@
+services:
+  gatus:
+    image: twinproduction/gatus:v5.37.0
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - ./data:/data
+    ports:
+      - 127.0.0.1:18081:8080
+    cpus: 0.5
+    mem_limit: 512m
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./public:/usr/share/nginx/html:ro
+    ports:
+      - 127.0.0.1:18080:80
+    depends_on: [gatus]
+    cpus: 0.25
+    mem_limit: 64m
+  argo:
+    image: cloudflare/cloudflared:2026.10.0
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./etc/cloudflared:/etc/cloudflared:ro
+    restart: unless-stopped
+    depends_on: [nginx]
+    cpus: 0.5
+    mem_limit: 256m
