@@ -1,0 +1,19 @@
+status/config.yaml
+  s_c912ccb812b4e7::t_ca68a0c43a6fea 20,25,30,35,40,45,50,55,60,73,78,83,88,93,98,103,108,113,118,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f6045b2e820d109c745a12dba163841add51f152",
+  "prompts": {},
+  "sessions": {
+    "s_c912ccb812b4e7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12f3a-8163-76c3-a597-cfd424fa0f55",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
