@@ -8,7 +8,7 @@
 
 services:
     archivebox:
-        image: ${ARCHIVEBOX_IMAGE:-archivebox/archivebox:dev}
+        image: ${ARCHIVEBOX_IMAGE:-archivebox/archivebox:latest}
         restart: unless-stopped
         # Uses the image's server --init command and /health/ healthcheck.
         ports:

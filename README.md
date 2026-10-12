@@ -1,10 +1,10 @@
 # ArchiveBox Docker deployments
 
-Deployment examples for the current [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox) `dev` image. The image includes the web server, crawl orchestrator, Sonic, and extraction dependencies. One server container manages each collection, including scheduled crawls and jobs submitted through the UI/API.
+Deployment examples for the stable [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox) `latest` image. The image includes the web server, crawl orchestrator, Sonic, and extraction dependencies. One server container manages each collection, including scheduled crawls and jobs submitted through the UI/API.
 
 - [Docker Compose](docker-compose.yml) — recommended single-host deployment
 - [Kubernetes](archivebox.yml) — single-replica example
-- [Image Dockerfile](https://github.com/ArchiveBox/ArchiveBox/blob/dev/Dockerfile) and [upstream Compose](https://github.com/ArchiveBox/ArchiveBox/blob/dev/docker-compose.yml)
+- [Image Dockerfile](https://github.com/ArchiveBox/ArchiveBox/blob/main/Dockerfile) and [upstream Compose](https://github.com/ArchiveBox/ArchiveBox/blob/main/docker-compose.yml)
 - [Docker documentation](https://github.com/ArchiveBox/ArchiveBox/wiki/Docker), [configuration](https://github.com/ArchiveBox/ArchiveBox/wiki/Configuration), and [releases](https://github.com/ArchiveBox/ArchiveBox/releases)
 
 ## Quickstart
@@ -39,7 +39,7 @@ mkdir -p ~/archivebox/data && cd ~/archivebox
 docker run -d --name archivebox --restart unless-stopped \
     --pids-limit 2048 --shm-size 1g \
     -p 5797:5797 -v "$PWD/data:/data" \
-    archivebox/archivebox:dev
+    archivebox/archivebox:latest
 docker exec -it archivebox archivebox status
 ```
 
@@ -194,7 +194,7 @@ Do not use `down -v` during an upgrade. Review [collection upgrade guidance](htt
 
 ## Image versions and development
 
-These examples target `archivebox/archivebox:dev`, matching the current server architecture. `latest` follows the stable release and may lag these features. Set `ARCHIVEBOX_IMAGE` in `.env` to a compatible published version, `sha-<commit>` tag, or digest to pin deployments. Check the [published tags](https://hub.docker.com/r/archivebox/archivebox/tags); arbitrary branch aliases are not guaranteed. Images are also published to `ghcr.io/archivebox/archivebox`.
+Docker Compose defaults to `archivebox/archivebox:latest`, following stable releases. Use `dev` explicitly to test release candidates. Set `ARCHIVEBOX_IMAGE` in `.env` to a compatible published version, `sha-<commit>` tag, or digest to pin deployments. Check the [published tags](https://hub.docker.com/r/archivebox/archivebox/tags); arbitrary branch aliases are not guaranteed. Images are also published to `ghcr.io/archivebox/archivebox`.
 
 The production Dockerfile lives in the main ArchiveBox repository and extends the `abx-dl` runtime image. To customize it, extend the complete image rather than installing only the Python package into a bare Python container:
 
