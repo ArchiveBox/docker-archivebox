@@ -17,47 +17,47 @@ ui:
       link: https://github.com/ArchiveBox/ArchiveBox
 endpoints:
   - name: API health
-    group: ArchiveBox
+    group: Services
     url: https://api.archivebox.io/health/
     interval: 1m
     conditions: ["[STATUS] == 200", "[BODY] == OK", "[RESPONSE_TIME] < 10000"]
   - name: Website
-    group: ArchiveBox
+    group: Landing pages
     url: https://archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Public archive
-    group: ArchiveBox
+    group: Services
     url: https://web.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 15000"]
   - name: Documentation
-    group: ArchiveBox
+    group: 3rd party
     url: https://docs.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Admin health
-    group: ArchiveBox
+    group: Services
     url: https://admin.archivebox.io/health/
     interval: 1m
     conditions: ["[STATUS] == 200", "[BODY] == OK"]
   - name: Demo health
-    group: ArchiveBox
+    group: Services
     url: https://demo.archivebox.io/health/
     interval: 1m
     conditions: ["[STATUS] == 200", "[BODY] == OK"]
   - name: Chat bot
-    group: ArchiveBox
+    group: Services
     url: https://chatbot.archivebox.io/healthz
     interval: 1m
     conditions: ["[STATUS] == 200", "[BODY].ok == true"]
   - name: TLSNotary
-    group: ArchiveBox
+    group: Services
     url: https://tlsnotary.archivebox.io/health
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Image hosting
-    group: Cabbage services
+    group: Services
     url: https://imgur.zervice.io/00VKXsVh.jpg
     interval: 1m
     conditions: ["[STATUS] == 200"]
@@ -70,57 +70,57 @@ endpoints:
       resolve-successful-conditions: true
     conditions: ["[STATUS] == 200", "[BODY].disk.available_gib > 10", "[BODY].disk.free_percent > 10"]
   - name: Zulip
-    group: ArchiveBox
+    group: Services
     url: https://zulip.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Installer
-    group: Downloads and packages
+    group: Shortcuts
     url: https://get.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Docker Compose
-    group: Downloads and packages
+    group: Shortcuts
     url: https://docker-compose.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Demo website
-    group: ArchiveBox
+    group: Services
     url: https://demo.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: App
-    group: ArchiveBox
+    group: Landing pages
     url: https://app.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: abxbus
-    group: Downloads and packages
+    group: Landing pages
     url: https://abxbus.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: abxpkg
-    group: Downloads and packages
+    group: Landing pages
     url: https://abxpkg.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: abx-dl
-    group: Downloads and packages
+    group: Landing pages
     url: https://abx-dl.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Swag
-    group: ArchiveBox
+    group: 3rd party
     url: https://swag.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: DigestBox
-    group: Other services
+    group: Services
     url: https://digestbox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Sweeting
-    group: Other services
+    group: Landing pages
     url: https://sweeting.me/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
