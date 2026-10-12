@@ -61,24 +61,6 @@ endpoints:
     url: https://imgur.zervice.io/00VKXsVh.jpg
     interval: 1m
     conditions: ["[STATUS] == 200"]
-  - name: Brittany Sweeting
-    group: Cabbage services
-    url: https://brittanysweeting.com/
-    interval: 1m
-    conditions: ["[STATUS] == 200"]
-  - name: IRC
-    group: Cabbage services
-    url: tcp://100.66.141.33:16667
-    interval: 1m
-    conditions: ["[CONNECTED] == true"]
-  - name: IRC web client
-    group: Cabbage services
-    url: http://100.66.141.33:19001/
-    interval: 1m
-    ui:
-      hide-url: true
-      hide-hostname: true
-    conditions: ["[STATUS] == 200"]
   - name: Disk free
     group: Cabbage
     url: http://nginx/deployment.json

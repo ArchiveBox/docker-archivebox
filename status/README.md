@@ -8,8 +8,8 @@ bind mounts, resource limits, restart policies, and a dedicated cloudflared tunn
 All configured public URLs are checked every minute, following redirects and
 requiring HTTP 200. API/admin/demo health additionally require `OK`; chat bot
 requires JSON `ok: true`. TLSNotary uses `/health`. Image hosting checks a real
-existing image because its directory index intentionally returns 403. IRC and
-its web client are checked on Cabbage's private interface. Dunhamfamily is excluded.
+existing image because its directory index intentionally returns 403. Brittany
+Sweeting, IRC, its web client, and Dunhamfamily are excluded.
 
 Open a service to see native 24h, 7d, and 30d response-time charts. Gatus's SQLite
 store retains 30 days of aggregated uptime and latency (hourly recent data,
