@@ -1,0 +1,35 @@
+status/.gitignore
+  s_c912ccb812b4e7::t_9d861f008b3c37 1-4
+status/README.md
+  s_c912ccb812b4e7::t_8e27f9112ffe50 1-87
+status/collect.sh
+  s_c912ccb812b4e7::t_32e38c42a7bfde 1-44
+status/config.yaml
+  s_c912ccb812b4e7::t_1bed1a35e44f9a 1-150
+status/docker-compose.yml
+  s_c912ccb812b4e7::t_18f17e4f201780 1-32
+status/nginx.conf
+  s_c912ccb812b4e7::t_42706eb94eb79e 1-18
+status/public/deployment.html
+  s_c912ccb812b4e7::t_38a9aede85aac4 1-20
+status/systemd/archivebox-status.service
+  s_c912ccb812b4e7::t_64cbb5539221dd 1-9
+status/systemd/archivebox-status.timer
+  s_c912ccb812b4e7::t_765fb790ef3865 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a95fcd57d8325a2482a4e93f2218a19514aef0f",
+  "prompts": {},
+  "sessions": {
+    "s_c912ccb812b4e7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12f3a-8163-76c3-a597-cfd424fa0f55",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
