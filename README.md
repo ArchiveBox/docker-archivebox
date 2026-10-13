@@ -65,6 +65,38 @@ then waits for the container's healthcheck. Inspect failures with
 `WorkingDirectory` for a different deployment location. Use this for deployments
 intended to track development builds automatically.
 
+### Pause a small host before disk exhaustion
+
+The optional host disk guard stops the ArchiveBox container below **2 GiB** free
+on any monitored filesystem and resumes it at **2.1 GiB**. It records the exact
+container and its restart policy, disables Docker automatic restarts while
+paused (including after a reboot), and never starts an unrelated or manually
+stopped container. It cancels an active image updater when the reserve is crossed;
+updates require 2.1 GiB both before pulling and before recreating the container.
+
+Install from this checkout on the Docker host:
+
+```bash
+sudo install -m 755 bin/archivebox-disk-guard /usr/local/sbin/archivebox-disk-guard
+sudo install -m 644 systemd/archivebox-disk-guard.{service,timer} /etc/systemd/system/
+sudo mkdir -p /etc/systemd/system/archivebox-dev-image.service.d
+sudo install -m 644 systemd/archivebox-dev-image-disk-guard.conf /etc/systemd/system/archivebox-dev-image.service.d/disk-guard.conf
+sudo systemctl daemon-reload
+sudo systemctl enable --now archivebox-disk-guard.timer
+sudo systemctl start archivebox-disk-guard.service
+```
+
+The five-second check monitors `/`, `/var/lib/docker`, and
+`/opt/archivebox/data`, plus `/var/lib/containerd` when present. Set
+`DEPLOYMENT_DIR` and a space-separated `DISK_PATHS` in
+`/etc/default/archivebox-disk-guard` when these paths differ. The guard stores its
+pause record under `/var/lib/archivebox-disk-guard`. Inspect transitions with
+`journalctl -u archivebox-disk-guard.service`; it gracefully stops the whole
+ArchiveBox container, so the web UI also becomes unavailable while paused.
+Other host services remain running. Sampling and the 60-second graceful shutdown
+cannot guarantee a reserve against a sudden large write or unrelated writers.
+The guard stops writes; it does not delete data to make space.
+
 The single `./data:/data` bind mount includes:
 
 | Path | Contents |

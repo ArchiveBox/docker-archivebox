@@ -1,0 +1,11 @@
+[Unit]
+Description=Check ArchiveBox disk reserve every five seconds
+
+[Timer]
+OnBootSec=5s
+OnUnitInactiveSec=5s
+AccuracySec=1s
+Unit=archivebox-disk-guard.service
+
+[Install]
+WantedBy=timers.target

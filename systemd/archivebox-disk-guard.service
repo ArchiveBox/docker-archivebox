@@ -1,0 +1,10 @@
+[Unit]
+Description=Pause ArchiveBox below 2 GiB free disk space
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/archivebox-disk-guard
+ExecStart=/usr/local/sbin/archivebox-disk-guard guard
+TimeoutStartSec=90

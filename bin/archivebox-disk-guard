@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# Host-side protection for a single Compose ArchiveBox service.
+set -euo pipefail
+DEPLOYMENT_DIR=${DEPLOYMENT_DIR:-/opt/archivebox}
+STATE_DIR=${STATE_DIR:-/var/lib/archivebox-disk-guard}
+LOCK_FILE=${LOCK_FILE:-/run/lock/archivebox-disk-guard.lock}
+PAUSE_BYTES=${PAUSE_BYTES:-2147483648}
+RESUME_BYTES=${RESUME_BYTES:-2254857831}
+UPDATER_UNIT=${UPDATER_UNIT:-archivebox-dev-image.service}
+if [[ -z ${DISK_PATHS:-} ]]; then
+    DISK_PATHS="/ /var/lib/docker $DEPLOYMENT_DIR/data"
+    [[ ! -d /var/lib/containerd ]] || DISK_PATHS+=" /var/lib/containerd"
+fi
+mkdir -p "$STATE_DIR"
+cd "$DEPLOYMENT_DIR"
+
+free_bytes() {
+    local path available minimum=9223372036854775807
+    for path in $DISK_PATHS; do
+        available=$(df -B1 --output=avail "$path" | tail -n 1)
+        available=${available//[[:space:]]/}
+        [[ $available =~ ^[0-9]+$ ]] || return 1
+        (( available < minimum )) && minimum=$available
+    done
+    echo "$minimum"
+}
+
+can_update() {
+    [[ ! -e "$STATE_DIR/stopped" ]] && (( $(free_bytes) >= RESUME_BYTES ))
+}
+
+prune_images() {
+    docker image prune --force --filter dangling=true \
+        --filter label=org.opencontainers.image.source=https://github.com/ArchiveBox/ArchiveBox
+}
+
+case ${1:-guard} in
+    update)
+        # The guard must remain able to stop the application during a pull.
+        # Its low-space action cancels this systemd unit as well.
+        can_update || { echo 'Image update inhibited: disk reserve or guard pause'; exit 0; }
+        prune_images
+        docker compose pull archivebox
+        exec 9>"$LOCK_FILE"
+        flock 9
+        can_update || { echo 'Image downloaded; recreation inhibited by disk guard'; exit 0; }
+        docker compose up -d --no-deps archivebox
+        flock -u 9
+        prune_images
+        # Do not call compose up --wait: it could restart a guard-stopped container.
+        id=$(docker compose ps -aq archivebox)
+        for ((attempt=0; attempt<180; attempt++)); do
+            [[ ! -e "$STATE_DIR/stopped" ]] || exit 0
+            status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$id")
+            [[ $status == healthy ]] && exit 0
+            [[ $status != exited && $status != dead && $status != unhealthy ]] || exit 1
+            sleep 5
+        done
+        echo 'ArchiveBox did not become healthy' >&2
+        exit 1
+        ;;
+    guard)
+        exec 9>"$LOCK_FILE"
+        flock 9
+        available=$(free_bytes)
+        if (( available < PAUSE_BYTES )); then
+            # Asynchronous to avoid waiting for an updater blocked on our lock.
+            systemctl stop --no-block "$UPDATER_UNIT"
+            if [[ ! -e "$STATE_DIR/stopped" ]]; then
+                id=$(docker compose ps -q archivebox)
+                if [[ -n $id ]] && [[ $(docker inspect -f '{{.State.Running}}' "$id") == true ]]; then
+                    policy=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}:{{.HostConfig.RestartPolicy.MaximumRetryCount}}' "$id")
+                    printf '%s %s\n' "$id" "$policy" > "$STATE_DIR/stopped.new"
+                    mv "$STATE_DIR/stopped.new" "$STATE_DIR/stopped"
+                fi
+            fi
+            if [[ -e "$STATE_DIR/stopped" ]]; then
+                read -r id policy < "$STATE_DIR/stopped"
+                docker update --restart=no "$id"
+                docker stop --time 60 "$id"
+                echo "ArchiveBox paused: $available bytes free (minimum $PAUSE_BYTES)"
+            fi
+        elif (( available >= RESUME_BYTES )) && [[ -e "$STATE_DIR/stopped" ]]; then
+            read -r id policy < "$STATE_DIR/stopped"
+            current=$(docker compose ps -aq archivebox)
+            if [[ $current != "$id" ]]; then
+                echo 'Guard-owned container was replaced; refusing to start another container' >&2
+                exit 1
+            fi
+            [[ $policy == on-failure:* ]] || policy=${policy%:*}
+            docker start "$id"
+            docker update --restart="$policy" "$id"
+            rm "$STATE_DIR/stopped"
+            echo "ArchiveBox resumed: $available bytes free"
+        fi
+        ;;
+    *) echo "Usage: $0 [guard|update]" >&2; exit 2 ;;
+esac
