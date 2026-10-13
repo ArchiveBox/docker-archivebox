@@ -1,0 +1,27 @@
+README.md
+  s_c912ccb812b4e7::t_1a948bae953ee8 68-99
+bin/archivebox-disk-guard
+  s_c912ccb812b4e7::t_9c7bc481feaa10 1-98
+systemd/archivebox-dev-image-disk-guard.conf
+  s_c912ccb812b4e7::t_eb9ab7ed3fa62b 1-5
+systemd/archivebox-disk-guard.service
+  s_c912ccb812b4e7::t_731639e5446e16 1-10
+systemd/archivebox-disk-guard.timer
+  s_c912ccb812b4e7::t_ab9b8cee7da714 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "923d4a250c5d49b13714dcb531140581cbb1036e",
+  "prompts": {},
+  "sessions": {
+    "s_c912ccb812b4e7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12f3a-8163-76c3-a597-cfd424fa0f55",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
