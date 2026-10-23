@@ -22,7 +22,7 @@ services:
     cpus: 0.25
     mem_limit: 64m
   argo:
-    image: cloudflare/cloudflared:2026.10.0
+    image: cloudflare/cloudflared:2026.10.3
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     volumes:
       - ./etc/cloudflared:/etc/cloudflared:ro
