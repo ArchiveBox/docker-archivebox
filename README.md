@@ -202,6 +202,16 @@ Use a plugin version that supports `vfs_links`. This is a storage mount; S3 cred
 
 For existing archives, stop writers, back up the collection, copy payloads with `rclone copy --links`, and verify with `rclone check --links` before switching mounts. Keep the original payloads until captures, replay, search, and restart behavior work against the new mount. Mounting an empty bucket over an existing archive hides the local files; it does not migrate them.
 
+### Updating external dependencies
+
+Rclone and any optional Watchtower service are managed separately: updating the
+ArchiveBox image does not update a host Rclone binary, Docker volume plugin, or
+Watchtower image. Choose a published release containing the fix you need; a
+source branch is not a released artifact. Before a [plugin upgrade](https://docs.docker.com/reference/cli/docker/plugin/upgrade/),
+stop writers and finish pending uploads before stopping all volume consumers.
+Preserve the config and VFS cache, and verify the remote mount before restarting
+ArchiveBox. The standard Compose deployment requires neither Rclone nor Watchtower.
+
 ## Optional browser access
 
 Uncomment `novnc` and the matching `depends_on` section in Compose. The image detects `novnc:0.0` and opens the selected persona's browser; `ARCHIVEBOX_VNC_PERSONA` chooses a persona (otherwise `DEFAULT_PERSONA`). Visit [noVNC](http://127.0.0.1:8080/vnc.html) to log into sites or watch captures. The browser profile persists in `data/personas`.
