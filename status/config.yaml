@@ -109,6 +109,11 @@ endpoints:
     url: https://abx-dl.archivebox.io/
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
+  - name: Donations
+    group: 3rd party
+    url: https://donate.archivebox.io/
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 10000"]
   - name: Swag
     group: 3rd party
     url: https://swag.archivebox.io/
