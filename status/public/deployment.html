@@ -3,18 +3,106 @@
 <title>ArchiveBox · Cabbage deployment</title>
 <style>
 :root{color-scheme:light dark;font:16px/1.6 system-ui}body{max-width:960px;margin:48px auto;padding:0 24px}a{color:#478eff}h1{line-height:1.2}section{border:1px solid #8885;border-radius:12px;padding:24px;margin:20px 0}code{overflow-wrap:anywhere}table{width:100%;text-align:left}td,th{padding:10px 10px 10px 0;vertical-align:top}.muted{color:#888}.bad{color:#e76d53}progress{width:100%;height:20px}
+.builds{padding:0 20px;background:color-mix(in srgb, CanvasText 2%, Canvas)}
+.build-row{display:grid;grid-template-columns:8rem minmax(0,1fr);align-items:center;gap:12px;padding:16px 0}
+.build-row + .build-row{border-top:1px solid #8884}
+.build-tag{width:max-content;font-size:.875rem;font-weight:650;white-space:nowrap}
+.build-flow{display:flex;align-items:flex-start;gap:4px;padding:0;margin:0;list-style:none}
+.build-stage{position:relative;flex:1;min-width:0;text-align:center}
+.build-stage + .build-stage::before{content:'→';position:absolute;left:-12px;top:7px;color:GrayText;pointer-events:none}
+.build-node{display:flex;flex-direction:column;align-items:center;gap:3px;color:CanvasText;text-decoration:none;font-size:.75rem;line-height:1.25}
+a.build-node:hover .build-label{text-decoration:underline}
+.build-icon{position:relative;display:grid;place-items:center;width:40px;height:40px;margin-bottom:3px;border:1px solid #8886;border-radius:12px;background:Canvas}
+.build-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.build-mark{position:absolute;right:-5px;bottom:-4px;width:16px;height:16px;display:grid;place-items:center;border:1px solid Canvas;border-radius:50%;background:#626b77;color:white;font:bold 11px/1 system-ui}
+[data-state=success] .build-mark,[data-state=published] .build-mark,[data-state=commit] .build-mark{background:#24734b}
+[data-state=in_progress] .build-mark{background:#1562b8}
+[data-state=failure] .build-mark,[data-state=timed_out] .build-mark{background:#b33830}
+[data-state=queued] .build-mark,[data-state=pending] .build-mark,[data-state=different] .build-mark{background:#905713}
+.build-revision{color:GrayText;font-size:.7rem}
+@media(max-width:640px){
+  .builds{margin-inline:-8px;padding-inline:10px}
+  .build-row{grid-template-columns:minmax(0,1fr);gap:10px}
+  .build-tag{margin-left:4px}
+  .build-label{max-width:7ch}
+}
 </style>
 <a href="/">← Service status & latency charts</a>
-<h1>Cabbage deployment</h1><p id="freshness">Loading current deployment…</p>
+<h1>Cabbage deployment</h1>
+<section class="builds" aria-label="Docker build status">
+  <div class="build-row" role="group" aria-labelledby="tag-dev"><code class="build-tag" id="tag-dev">:dev</code><ol class="build-flow" id="flow-dev"></ol></div>
+  <div class="build-row" role="group" aria-labelledby="tag-dev-unstable"><code class="build-tag" id="tag-dev-unstable">:dev-unstable</code><ol class="build-flow" id="flow-dev-unstable"></ol></div>
+</section>
+<p id="freshness">Loading current deployment…</p>
 <section><h2>ArchiveBox running now</h2><p id="commit"></p><p id="version"></p><small id="image" class="muted"></small></section>
 <section><h2>GitHub branch comparison</h2><table><thead><tr><th>Branch</th><th>Head commit</th><th>Server relative to head</th></tr></thead><tbody id="branches"></tbody></table><p id="branch-time" class="muted"></p></section>
 <section><h2>Cabbage disk space</h2><p id="disk"></p><progress id="disk-bar" max="100"></progress><p class="muted">Root filesystem (/). The status check fails below 10 GiB or 10% available.</p></section>
 <p class="muted">Host metadata refreshes every minute; GitHub comparisons every 10 minutes and after a deployment. Revision comes from the running container's OCI image label. Monitoring is hosted on Cabbage, so a full host outage also takes this page offline.</p>
 <script>
 const repo='https://github.com/ArchiveBox/ArchiveBox';
+const icons = {
+  commit: '<circle cx="7" cy="5" r="2"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="7" r="2"/><path d="M7 7v10m0-2c6 0 10-1 10-6"/>',
+  build: '<path d="M3 7h18v12H3zm4 0v12m5-12v12m5-12v12M6 4h12"/>',
+  checks: '<path d="M12 3l7 3v5c0 4-2.5 7-7 10-4.5-3-7-6-7-10V6zM9 12l2 2 4-4"/>',
+  publish: '<path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/>',
+  registry: '<path d="M4 7l8-4 8 4v10l-8 4-8-4zm0 0 8 4 8-4m-8 4v10M8 5l8 4v4"/>',
+};
+const marks = {
+  success:['✓','Succeeded'], in_progress:['↻','In progress'], queued:['…','Queued'],
+  pending:['…','Pending'], waiting:['…','Waiting'], failure:['×','Failed'], timed_out:['×','Timed out'],
+  action_required:['!','Action required'], cancelled:['−','Cancelled'], skipped:['−','Skipped'],
+  commit:['✓','Latest dev push'], different:['◷','Published from a different commit'],
+  published:['✓','Published'], unknown:['?','Unknown'],
+};
+function actionLink(run, job) {
+  if (!run) return null;
+  return `${repo}/actions/runs/${run}${job ? `/job/${job}` : ''}`;
+}
+function buildNode(label, icon, state, href, revision, detail) {
+  const item = document.createElement('li');
+  const node = document.createElement(href ? 'a' : 'div');
+  item.className = 'build-stage';
+  node.className = 'build-node';
+  if (href) node.href = href;
+  else node.setAttribute('role', 'img');
+  const [mark, status] = marks[state] || marks.unknown;
+  node.dataset.state = state || 'unknown';
+  node.title = [label, status, detail, revision].filter(Boolean).join(' · ');
+  node.setAttribute('aria-label', node.title);
+  node.innerHTML = `<span class="build-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${icons[icon]}</svg><span class="build-mark">${mark}</span></span><span class="build-label">${label}</span>`;
+  if (revision) {
+    const sha = document.createElement('code');
+    sha.className = 'build-revision';
+    sha.textContent = revision.slice(0, 7);
+    node.append(sha);
+  }
+  item.append(node);
+  return item;
+}
+function renderBuilds(data) {
+  const {revision, run, build, checks, early, release, tags} = data || {};
+  for (const tag of ['dev', 'dev-unstable']) {
+    const gated = tag === 'dev';
+    const publish = gated ? release : early;
+    const image = tags?.[tag];
+    const imageState = image && (revision && image.revision !== revision ? 'different' : 'published');
+    const stages = [
+      buildNode('Commit', 'commit', revision && 'commit', revision && `${repo}/commit/${revision}`, revision),
+      buildNode('Docker build', 'build', build, actionLink(run)),
+    ];
+    if (gated) stages.push(buildNode('CI checks', 'checks', checks?.state, actionLink(run, checks?.job)));
+    stages.push(
+      buildNode(gated ? 'Publish' : 'Early publish', 'publish', publish?.state,
+        actionLink(gated ? publish?.run : run, publish?.job)),
+      buildNode('Docker Hub', 'registry', imageState, `https://hub.docker.com/r/archivebox/archivebox/tags?name=${tag}`,
+        image?.revision, image?.version),
+    );
+    document.querySelector(`#flow-${tag}`).replaceChildren(...stages);
+  }
+}
 function link(sha){const a=document.createElement('a');a.href=`${repo}/commit/${sha}`;a.textContent=sha;const c=document.createElement('code');c.append(a);return c}
 let latest;
 function freshness(){if(!latest)return;const age=Math.floor(Date.now()/1000-latest.updated_at);const el=document.querySelector('#freshness');el.textContent=`Updated ${new Date(latest.updated_at*1000).toLocaleString()} · ${age}s ago${age>180?' — STALE: collector is not updating':''}`;el.className=age>180?'bad':'muted'}
-async function refresh(){try{const r=await fetch('/deployment.json',{cache:'no-store'});if(!r.ok)throw Error(`HTTP ${r.status}`);const d=await r.json();latest=d;freshness();document.querySelector('#commit').replaceChildren(link(d.deployed));document.querySelector('#version').textContent=`Version ${d.version}`;document.querySelector('#image').textContent=`Image ${d.image}`;const rows=document.querySelector('#branches');rows.replaceChildren();for(const name of ['dev','main']){const b=d.branches[name],tr=document.createElement('tr');for(let i=0;i<3;i++)tr.append(document.createElement('td'));tr.children[0].textContent=name;if(b.error){tr.children[1].textContent='Unknown';tr.children[2].textContent=b.error;}else{tr.children[1].append(link(b.head));const a=document.createElement('a');a.href=`${repo}/compare/${d.deployed}...${b.head}`;a.textContent=b.behind===0&&b.ahead===0?'Up to date':`${b.behind} commits behind · ${b.ahead} commits ahead${b.status==='diverged'?' (diverged)':''}`;tr.children[2].append(a)}rows.append(tr)}document.querySelector('#branch-time').textContent=`GitHub checked ${new Date(d.branches.checked_at*1000).toLocaleString()}`;document.querySelector('#disk').textContent=`${d.disk.available_gib} GiB available / ${(d.disk.total_bytes/1073741824).toFixed(1)} GiB · ${d.disk.free_percent}% free`;document.querySelector('#disk-bar').value=100-d.disk.free_percent}catch(e){document.querySelector('#freshness').textContent=`Unable to refresh metadata: ${e.message}`;document.querySelector('#freshness').className='bad'}}
-refresh();setInterval(refresh,60000);setInterval(freshness,1000);
+async function refresh(){try{const r=await fetch('/deployment.json',{cache:'no-store'});if(!r.ok)throw Error(`HTTP ${r.status}`);const d=await r.json();latest=d;renderBuilds(d.builds);freshness();document.querySelector('#commit').replaceChildren(link(d.deployed));document.querySelector('#version').textContent=`Version ${d.version}`;document.querySelector('#image').textContent=`Image ${d.image}`;const rows=document.querySelector('#branches');rows.replaceChildren();for(const name of ['dev','main']){const b=d.branches[name],tr=document.createElement('tr');for(let i=0;i<3;i++)tr.append(document.createElement('td'));tr.children[0].textContent=name;if(b.error){tr.children[1].textContent='Unknown';tr.children[2].textContent=b.error;}else{tr.children[1].append(link(b.head));const a=document.createElement('a');a.href=`${repo}/compare/${d.deployed}...${b.head}`;a.textContent=b.behind===0&&b.ahead===0?'Up to date':`${b.behind} commits behind · ${b.ahead} commits ahead${b.status==='diverged'?' (diverged)':''}`;tr.children[2].append(a)}rows.append(tr)}document.querySelector('#branch-time').textContent=`GitHub checked ${new Date(d.branches.checked_at*1000).toLocaleString()}`;document.querySelector('#disk').textContent=`${d.disk.available_gib} GiB available / ${(d.disk.total_bytes/1073741824).toFixed(1)} GiB · ${d.disk.free_percent}% free`;document.querySelector('#disk-bar').value=100-d.disk.free_percent}catch(e){document.querySelector('#freshness').textContent=`Unable to refresh metadata: ${e.message}`;document.querySelector('#freshness').className='bad'}}
+renderBuilds();refresh();setInterval(refresh,60000);setInterval(freshness,1000);
 </script></html>

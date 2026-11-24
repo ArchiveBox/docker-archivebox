@@ -22,14 +22,17 @@ The **Cabbage: deployed commit, branch heads & disk space** link opens
 version and image ID, links to the deployed/dev/main commits and comparisons,
 and root filesystem available space. Behind/ahead counts are computed against
 immutable GitHub commit IDs; a diverged main branch is identified explicitly.
+The two Docker build diagrams follow the latest dev push through the GitHub
+Actions jobs and show the revisions currently published on Docker Hub.
 The host collector runs every minute, caches GitHub comparisons for ten minutes,
-and refreshes them immediately if the deployed revision changes. GitHub lookup
-errors are shown as unknown. The page marks host metadata stale after three
+and refreshes them immediately if the deployed revision changes. Build and tag
+status refresh every ten minutes. GitHub lookup errors are shown as unknown.
+The page marks host metadata stale after three
 minutes; a Gatus heartbeat also fails when the collector stops updating.
 
 ## Deployment
 
-Requires Docker Compose, systemd, bash, curl, jq, and OpenSSL on Cabbage.
+Requires Docker Compose, Docker Buildx, systemd, bash, curl, jq, and OpenSSL on Cabbage.
 Copy this directory to `/opt/archivebox.status`, preserving `.env`, `data/`, and
 `etc/cloudflared/`. Keep generated metadata, credentials, and SQLite out of Git.
 Only nginx/Gatus bind to loopback; public access goes through Cloudflare.
