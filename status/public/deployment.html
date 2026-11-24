@@ -74,7 +74,7 @@ summary.job-count{display:list-item;cursor:pointer}
 .job-list li a{overflow-wrap:anywhere;text-underline-offset:2px}
 .job-list .timing{justify-content:flex-end;text-align:right}
 .job-state{grid-column:1;color:GrayText;font-size:.7rem}
-.job-count[data-state=failure]:is(summary),.job-count[data-state=runner],.branch-runner,.stage-runner{color:#a62520}
+.job-count[data-state=failure]:is(summary),.job-count[data-state=runner],.branch-runner[data-state=runner],.stage-runner[data-state=runner]{color:#a62520}
 .stage-runner{font-size:.7rem;font-weight:700}
 .job-list:has([data-state=runner]){grid-column:1/-1;border:1px solid #e5685a;border-radius:8px;padding:4px 10px;background:#e5685a16}
 [data-state=runner] + ul{max-height:7rem}
@@ -86,7 +86,7 @@ summary.job-count{display:list-item;cursor:pointer}
 .branch-average{position:absolute;top:-2px;height:11px;left:var(--mean);border-left:2px solid CanvasText;pointer-events:none}
 .branch-timing{color:GrayText}
 @media(prefers-color-scheme:dark){
-  .job-count[data-state=failure]:is(summary),.job-count[data-state=runner],.branch-runner,.stage-runner{color:#ff9f8d}
+  .job-count[data-state=failure]:is(summary),.job-count[data-state=runner],.branch-runner[data-state=runner],.stage-runner[data-state=runner]{color:#ff9f8d}
 }
 @media(max-width:640px){
   .builds{margin-inline:-8px;padding-inline:10px}
@@ -242,7 +242,7 @@ function repoRun(repoUrl, run, average) {
   if (run.jobs?.length) {
     const running = run.jobs.filter(job => job.state === 'in_progress').length;
     const waiting = run.jobs.filter(job => job.state === 'queued').length;
-    const activity = element('a', `${running} running · ${waiting} waiting for runners`, 'job-state');
+    const activity = element('a', `${running} running · ${waiting} ${queueLabel(runningJobs(getBuilds()))}`, 'job-state');
     activity.href = '#runner-jobs';
     activity.addEventListener('click', () => { document.querySelector('#runner-jobs details').open = true; });
     item.append(activity);
@@ -305,7 +305,7 @@ function renderRepos(repos = []) {
 function active(state) {
   return ['in_progress', 'queued', 'pending', 'requested', 'waiting'].includes(state);
 }
-function buildNode(label, icon, stage, href, average, current, checkedAt, waits) {
+function buildNode(label, icon, stage, href, average, current, checkedAt, waits, work) {
   const item = element('li', undefined, 'build-stage');
   const node = href ? external(href) : element('div');
   node.className = 'build-node';
@@ -332,7 +332,11 @@ function buildNode(label, icon, stage, href, average, current, checkedAt, waits)
     node.append(times);
   }
   const waiting = stage.jobsUnavailable ? 0 : stage.jobs?.filter(job => runnerWait(job, checkedAt)).length;
-  if (waiting) node.append(element('span', `${waiting} waiting for runners`, 'stage-runner'));
+  if (waiting) {
+    const status = element('span', `${waiting} ${queueLabel(work)}`, 'stage-runner');
+    status.dataset.state = !work.running.length && !work.unavailable ? 'runner' : 'queued';
+    node.append(status);
+  }
   if (href) node.append(element('span', icon === 'registry' ? '↗' : 'GitHub ↗', 'build-link'));
   item.append(node);
   return item;
@@ -383,6 +387,12 @@ function runningJobs(data) {
   }
   return {running, queued, unavailable};
 }
+function queueLabel(work) {
+  // Queued work is normal while other jobs occupy the shared runners. Only
+  // call out runner availability when a fresh snapshot shows no work running.
+  if (work.running.length) return 'queued behind running jobs';
+  return work.unavailable ? 'queued' : 'waiting for runners';
+}
 function runningLabel(work) {
   if (!work.running.length) return work.unavailable ? 'running job status unavailable' : 'no jobs running';
   const counts = new Map();
@@ -422,7 +432,7 @@ function showPipelineWait(flow, stages, data, work) {
   const [label, icon, stage] = stages[pending];
   note.replaceChildren(element('strong', `${label}: `));
   if (stage.state === 'queued' || stage.state === 'pending' || stage.state === 'requested') {
-    note.append('waiting for runners · ');
+    note.append(`${queueLabel(work)} · `);
     const link = element('a', runningLabel(work));
     link.href = '#runner-jobs';
     link.addEventListener('click', () => { document.querySelector('#runner-jobs details').open = true; });
@@ -438,7 +448,7 @@ function showPipelineWait(flow, stages, data, work) {
       jobs.forEach((job, index) => {
         if (index) note.append(', ');
         note.append(external(actionLink(data.ci.id, job.id), job.name.replace(`${dockerBuild} / `, '')));
-        if (job.state === 'queued') note.append(' (waiting for runners)');
+        if (job.state === 'queued') note.append(` (${queueLabel(work)})`);
       });
     } else note.append(prerequisite || 'GitHub workflow');
   }
@@ -519,8 +529,11 @@ function showJobs(container, label, run, checkedAt, averages = {}, waits = {}) {
   }
   const body = element('div', undefined, 'jobs-body');
   if (waiting.length) {
-    body.append(element('p', runningLabel(runningJobs(getBuilds())), 'stage-runner'));
-    body.append(jobList(run, waiting, 'Waiting for runners', 'runner', false, averages, waits));
+    const work = runningJobs(getBuilds());
+    const label = queueLabel(work);
+    body.append(element('p', runningLabel(work), 'muted'));
+    body.append(jobList(run, waiting, label[0].toUpperCase() + label.slice(1),
+      !work.running.length && !work.unavailable ? 'runner' : 'queued', false, averages, waits));
   }
   body.append(jobList(run, failures, 'Failed', 'failure', true, averages),
     jobList(run, running, 'In progress', 'in_progress', true, averages));
@@ -554,7 +567,7 @@ function renderBuilds() {
     flow.replaceChildren(...stages.map((stage, i) =>
       buildNode(stage[0], stage[1], stage[2], stage[3], stage[4], i === next ||
         (stage[1] === 'watchtower' && stage[2].state === 'in_progress'), data.checked_at,
-        tag === 'dev' && stage[1] === 'publish' ? data.wait_averages?.release : data.wait_averages?.ci)));
+        tag === 'dev' && stage[1] === 'publish' ? data.wait_averages?.release : data.wait_averages?.ci, work)));
     showPipelineWait(flow, stages, data, work);
   }
   showJobs(document.querySelector('#ci-jobs'), 'CI', data.ci, data.checked_at, data.job_averages?.ci, data.wait_averages?.ci);
@@ -587,7 +600,10 @@ function comparisonProgress(name, branch, data) {
   progress.append(title);
   const waiting = run.jobsUnavailable ? [] : run.jobs.filter(job => runnerWait(job, data.checked_at));
   if (name === 'main' && waiting.length) {
-    progress.append(element('span', `${waiting.length} waiting for runners`, 'branch-runner'));
+    const work = runningJobs(data);
+    const status = element('span', `${waiting.length} ${queueLabel(work)}`, 'branch-runner');
+    status.dataset.state = !work.running.length && !work.unavailable ? 'runner' : 'queued';
+    progress.append(status);
   }
   if (avg) {
     const meter = element('div', undefined, 'branch-meter');
