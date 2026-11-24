@@ -24,7 +24,8 @@ collect_builds() {
     if ci=$(github_actions 'workflows/ci.yml/runs?branch=dev&event=push&per_page=1' | jq -ce '.workflow_runs[0]'); then
         run=$(jq -r '.id' <<< "$ci")
         revision=$(jq -r '.head_sha' <<< "$ci")
-        jobs=$(github_actions "runs/$run/jobs?per_page=100" | jq -ce '.jobs') || jobs=null
+        jobs=$(github_actions "runs/$run/jobs?per_page=100" | jq -ce '.jobs | arrays
+            | map({id,name,status,conclusion})') || jobs=null
         stages=$(jq -n --argjson ci "$ci" --argjson jobs "$jobs" '
             def state: .conclusion // .status;
             def waiting: if $jobs == null then "unknown"
@@ -47,9 +48,11 @@ collect_builds() {
         if [[ $(jq -r '.conclusion' <<< "$ci") == success ]]; then
             if release=$(github_actions "workflows/release.yml/runs?branch=dev&event=workflow_run&head_sha=$revision&per_page=1" | jq -ce '.workflow_runs[0] // {}'); then
                 if release_run=$(jq -er '.id' <<< "$release"); then
-                    jobs=$(github_actions "runs/$release_run/jobs?per_page=100" | jq -ce '.jobs') || jobs=null
+                    jobs=$(github_actions "runs/$release_run/jobs?per_page=100" | jq -ce '.jobs | arrays
+                        | map(select(.name == "Publish tested multiarch image"))
+                        | map({id,status,conclusion,steps:[.steps[]? | {name,conclusion}]})') || jobs=null
                     stages=$(jq --argjson jobs "$jobs" --argjson run "$release" '
-                        ($jobs // [] | map(select(.name == "Publish tested multiarch image"))[0]) as $job
+                        $jobs[0] as $job
                         | ($job.steps // [] | map(select(.name == "Promote the exact tested universal image"))[0]) as $step
                         | .release = {run:$run.id, job:$job.id, state:
                             (if $jobs == null then "unknown"
