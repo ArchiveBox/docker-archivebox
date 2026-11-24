@@ -138,12 +138,14 @@ function buildNode(label, icon, stage, href, average, current, checkedAt) {
   const [mark, status] = marks[stage.state] || marks.unknown;
   node.innerHTML = `<span class="build-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${icons[icon]}</svg><span class="build-mark">${mark}</span></span>`;
   node.append(element('span', label, 'build-label'));
-  if (stage.revision) {
+  if (stage.revision && ['commit', 'registry'].includes(icon)) {
     node.append(element('code', stage.revision.slice(0, 7), 'build-revision'));
     node.title = [stage.version, stage.revision].filter(Boolean).join(' · ');
   }
   if (stage.state !== 'commit') node.append(element('span', status, 'build-state'));
-  if (stage.started) node.append(clock(stage.started, stage.finished));
+  const queuedAt = stage.state === 'queued' && stage.jobs
+    ?.filter(job => job.state === 'queued').map(job => job.started).filter(Boolean).sort()[0];
+  if (stage.started || queuedAt) node.append(clock(stage.started || queuedAt, stage.finished));
   const waiting = stage.jobsUnavailable ? 0 : stage.jobs?.filter(job => runnerWait(job, checkedAt)).length;
   if (waiting) node.append(element('span', `⚠ ${waiting} Queued · 5m+`, 'stage-runner'));
   if (average) {
@@ -258,12 +260,12 @@ function comparisonProgress(name, branch, data) {
   const run = name === 'dev' ? data.ci : data.main;
   if (!run || branch.head !== run.revision) return null;
   const tracksUnstable = name === 'dev' && /:dev-unstable$/.test(latest.image_ref);
-  const early = tracksUnstable && jobStage(run.jobs, earlyPublish, run);
+  const early = tracksUnstable ? jobStage(run.jobs, earlyPublish, run) : null;
   const stage = ciStage(run);
   const avg = data.averages?.[tracksUnstable ? 'unstable' : name];
   const progress = element('div', undefined, 'branch-progress');
   const title = element('div', undefined, 'branch-progress-title');
-  title.append(external(actionLink(run.id, early?.jobs[0]?.id), `${early ? earlyPublish : 'CI'} ↗`));
+  title.append(external(actionLink(run.id, early?.jobs?.[0]?.id), `${early ? earlyPublish : 'CI'} ↗`));
   const state = early?.state === 'waiting' ? stage.state : early?.state || stage.state;
   const finished = early?.finished || (!active(early?.state) ? stage.finished : null);
   title.append(element('span', (marks[state] || marks.unknown)[1], 'build-state'));
