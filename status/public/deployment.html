@@ -26,6 +26,7 @@ a.build-node:hover .build-label,a.build-node:focus-visible .build-label{text-dec
 [data-state=queued] .build-mark,[data-state=pending] .build-mark,[data-state=different] .build-mark{background:#905713}
 .build-revision{color:GrayText;font-size:.7rem}
 .elapsed,.branch-timing{font-variant-numeric:tabular-nums}
+.timing{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:6px;font-variant-numeric:tabular-nums}
 .jobs{border-top:1px solid #8884;padding:12px 0;font-size:.8rem}
 .jobs-heading{display:flex;align-items:center;gap:10px;font-weight:650;margin-bottom:8px}
 .jobs-heading a,.job-list li a,.branch-progress a{color:LinkText}
@@ -36,6 +37,7 @@ summary.job-count{display:list-item;cursor:pointer}
 .job-list ul{padding:0;margin:0;list-style:none;max-height:11rem;overflow:auto;scrollbar-gutter:stable}
 .job-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 8px;padding:4px 6px 4px 0;line-height:1.35;border-bottom:1px solid #8883}
 .job-list li a{overflow-wrap:anywhere;text-underline-offset:2px}
+.job-list .timing{justify-content:flex-end;text-align:right}
 .job-state{grid-column:1;color:GrayText;font-size:.7rem}
 .job-count[data-state=failure]:is(summary),.job-count[data-state=runner],.branch-runner,.stage-runner{color:#a62520}
 .stage-runner{font-size:.7rem;font-weight:700}
@@ -57,6 +59,7 @@ summary.job-count{display:list-item;cursor:pointer}
   .build-tag{margin:0 0 0 4px}
   .build-label{overflow-wrap:anywhere;font-size:.7rem}
   .job-list ul{max-height:9rem}
+  .job-list .timing{display:grid}
   .branch-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   .branch-table tbody{display:grid;gap:12px}
   .branch-table tr{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 10px}
@@ -133,6 +136,17 @@ function clock(started, finished) {
   if (!finished) time.dataset.started = started;
   return time;
 }
+function timing(started, finished, average, queued = false) {
+  const times = element('span', undefined, 'timing');
+  if (started) times.append(clock(started, finished));
+  if (average !== undefined) {
+    const label = queued ? 'Avg run' : 'Avg';
+    const avg = element('span', `${label} ${average ? duration(average.seconds) : '—'}`, 'build-avg');
+    if (average) avg.title = `${average.count} successful runs`;
+    times.append(avg);
+  }
+  return times;
+}
 function active(state) {
   return ['in_progress', 'queued', 'pending', 'requested', 'waiting'].includes(state);
 }
@@ -152,14 +166,11 @@ function buildNode(label, icon, stage, href, average, current, checkedAt) {
   if (stage.state !== 'commit') node.append(element('span', status, 'build-state'));
   const queuedAt = stage.state === 'queued' && stage.jobs
     ?.filter(job => job.state === 'queued').map(job => job.started).filter(Boolean).sort()[0];
-  if (stage.started || queuedAt) node.append(clock(stage.started || queuedAt, stage.finished));
+  if (stage.started || queuedAt || average !== undefined) {
+    node.append(timing(stage.started || queuedAt, stage.finished, average, Boolean(queuedAt && !stage.started)));
+  }
   const waiting = stage.jobsUnavailable ? 0 : stage.jobs?.filter(job => runnerWait(job, checkedAt)).length;
   if (waiting) node.append(element('span', `⚠ ${waiting} Queued · 5m+`, 'stage-runner'));
-  if (average) {
-    const avg = element('span', `Avg ${duration(average.seconds)}`, 'build-avg');
-    avg.title = `Avg · ${average.count} runs`;
-    node.append(avg);
-  }
   if (href) node.append(element('span', icon === 'registry' ? '↗' : 'GitHub ↗', 'build-link'));
   item.append(node);
   return item;
@@ -182,20 +193,20 @@ function stagesFor(tag, data) {
   const tested = ciStage(ci);
   if (tag === 'dev') {
     const release = data.release || {state: tested.state === 'skipped' || failed(ci.state) || ci.state === 'cancelled' ? 'skipped' : 'waiting'};
-    return [start, ['CI', 'checks', tested, ciUrl, averages.dev],
-      ['Release', 'publish', release, actionLink(release.id) || `${repo}/actions/workflows/release.yml?query=branch%3Adev`, averages.release], end];
+    return [start, ['CI', 'checks', tested, ciUrl, averages.dev ?? null],
+      ['Release', 'publish', release, actionLink(release.id) || `${repo}/actions/workflows/release.yml?query=branch%3Adev`, averages.release ?? null], end];
   }
   const prepare = jobStage(ci.jobs, prepareJob, ci);
   const docker = jobStage(ci.jobs, dockerBuild, ci, 2);
   const early = jobStage(ci.jobs, earlyPublish, ci);
-  return [start, ['Prepare release version', 'prepare', prepare, actionLink(ci.id, prepare.jobs[0]?.id)],
-    [dockerBuild, 'build', docker, ciUrl, averages.docker],
-    [earlyPublish, 'publish', early, actionLink(ci.id, early.jobs[0]?.id), averages.early], end];
+  return [start, ['Prepare release version', 'prepare', prepare, actionLink(ci.id, prepare.jobs[0]?.id), data.job_averages?.ci?.[prepareJob] ?? null],
+    [dockerBuild, 'build', docker, ciUrl, averages.docker ?? null],
+    [earlyPublish, 'publish', early, actionLink(ci.id, early.jobs[0]?.id), averages.early ?? null], end];
 }
 function runnerWait(job, checkedAt) {
   return job.state === 'queued' && checkedAt * 1000 - Date.parse(job.started) >= 300000;
 }
-function jobList(run, jobs, label, state, open) {
+function jobList(run, jobs, label, state, open, averages) {
   const summary = jobs.length ? element('summary', `${jobs.length} ${label}`, 'job-count')
     : element('span', `0 ${label}`, 'job-count');
   summary.dataset.state = state;
@@ -207,14 +218,15 @@ function jobList(run, jobs, label, state, open) {
   for (const job of jobs) {
     const row = element('li');
     row.append(external(actionLink(run.id, job.id), job.name));
-    if (job.started) row.append(clock(job.started, job.finished));
+    const average = Object.hasOwn(averages, job.name) ? averages[job.name] : null;
+    row.append(timing(job.started, job.finished, average, job.state === 'queued'));
     if (state === 'failure') row.append(element('span', marks[job.state]?.[1], 'job-state'));
     list.append(row);
   }
   details.append(list);
   return details;
 }
-function showJobs(container, label, run, checkedAt) {
+function showJobs(container, label, run, checkedAt, averages = {}) {
   if (!run) {
     container.hidden = true;
     return;
@@ -233,9 +245,10 @@ function showJobs(container, label, run, checkedAt) {
     return;
   }
   const body = element('div', undefined, 'jobs-body');
-  if (waiting.length) body.append(jobList(run, waiting, 'Waiting for a runner · 5m+', 'runner', true));
-  body.append(jobList(run, failures, 'Failed', 'failure', true), jobList(run, running, 'In progress', 'in_progress', true),
-    jobList(run, queued, 'Queued', 'queued', false));
+  if (waiting.length) body.append(jobList(run, waiting, 'Waiting for a runner · 5m+', 'runner', true, averages));
+  body.append(jobList(run, failures, 'Failed', 'failure', true, averages),
+    jobList(run, running, 'In progress', 'in_progress', true, averages),
+    jobList(run, queued, 'Queued', 'queued', false, averages));
   container.replaceChildren(header, body);
 }
 function getBuilds() {
@@ -254,8 +267,8 @@ function renderBuilds() {
     document.querySelector(`#flow-${tag}`).replaceChildren(...stages.map((stage, i) =>
       buildNode(stage[0], stage[1], stage[2], stage[3], stage[4], i === next, data.checked_at)));
   }
-  showJobs(document.querySelector('#ci-jobs'), 'CI', data.ci, data.checked_at);
-  showJobs(document.querySelector('#release-jobs'), 'Release', data.release, data.checked_at);
+  showJobs(document.querySelector('#ci-jobs'), 'CI', data.ci, data.checked_at, data.job_averages?.ci);
+  showJobs(document.querySelector('#release-jobs'), 'Release', data.release, data.checked_at, data.job_averages?.release);
 }
 function link(sha, compact = false) {
   const a = external(`${repo}/commit/${sha}`, sha);
