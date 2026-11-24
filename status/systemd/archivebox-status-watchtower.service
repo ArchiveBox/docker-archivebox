@@ -1,0 +1,13 @@
+[Unit]
+Description=Collect Watchtower update status for ArchiveBox
+After=docker.service
+Requires=docker.service
+
+[Service]
+WorkingDirectory=/opt/archivebox.status
+ExecStart=/usr/bin/node /opt/archivebox.status/collect-watchtower.mjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

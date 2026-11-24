@@ -2,3 +2,4 @@
 etc/
 data/
 public/deployment.json
+public/watchtower.json

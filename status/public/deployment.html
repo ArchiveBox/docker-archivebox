@@ -28,6 +28,32 @@ a.build-node:hover .build-label,a.build-node:focus-visible .build-label{text-dec
 .elapsed,.branch-timing{font-variant-numeric:tabular-nums}
 .timing{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:6px;font-variant-numeric:tabular-nums}
 .wait-eta{font-size:.7rem;font-weight:650}
+.repo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:start}
+.repo-card{border:1px solid #8885;border-radius:8px;padding:10px;font-size:.75rem;min-width:0}
+.repo-card h3{font-size:.85rem;margin:0;overflow-wrap:anywhere}
+.repo-card header{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:4px}
+.repo-card h4{font-size:.7rem;margin:6px 0 1px}
+.repo-card time{color:GrayText;white-space:nowrap;font-size:.65rem}
+.repo-star{color:#9b660b}
+.repo-card ul{list-style:none;margin:0;padding:0}
+.repo-run{padding:3px 0;border-top:1px solid #8883;overflow-wrap:anywhere}
+.repo-run-line{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:start;gap:3px;line-height:1.35}
+.repo-run-line .timing{justify-content:flex-end}
+.repo-mark{font-weight:700;text-align:center;color:GrayText;text-decoration:none}
+.repo-mark[data-state=success]{color:#24734b}
+.repo-mark[data-state=in_progress]{color:#1562b8}
+.repo-mark[data-state=failure],.repo-mark[data-state=timed_out],.repo-mark[data-state=startup_failure],.repo-mark[data-state=action_required]{color:#a62520}
+.repo-card details{margin:2px 0 0 19px}
+.repo-card summary{cursor:pointer;color:GrayText}
+.repo-card details li{padding:2px 0}
+@media(prefers-color-scheme:dark){
+  .repo-star{color:#ffd07c}
+  .repo-mark[data-state=success]{color:#76d49e}
+  .repo-mark[data-state=in_progress]{color:#81b8ff}
+  .repo-mark[data-state=failure],.repo-mark[data-state=timed_out],.repo-mark[data-state=startup_failure],.repo-mark[data-state=action_required]{color:#ff9f8d}
+}
+@media(max-width:820px){.repo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:550px){.repo-grid{grid-template-columns:minmax(0,1fr)}}
 .jobs{border-top:1px solid #8884;padding:12px 0;font-size:.8rem}
 .jobs-heading{display:flex;align-items:center;gap:10px;font-weight:650;margin-bottom:8px}
 .jobs-heading a,.job-list li a,.branch-progress a{color:LinkText}
@@ -59,6 +85,9 @@ summary.job-count{display:list-item;cursor:pointer}
   .build-row{grid-template-columns:minmax(0,1fr);gap:10px}
   .build-tag{margin:0 0 0 4px}
   .build-label{overflow-wrap:anywhere;font-size:.7rem}
+  .build-flow:has(>li:nth-child(6)) .build-icon{width:32px;height:32px;border-radius:9px}
+  .build-flow:has(>li:nth-child(6)) .build-icon svg{width:17px;height:17px}
+  .build-flow:has(>li:nth-child(6)) .build-stage + .build-stage::before{left:-10px;top:4px;font-size:.85rem}
   .job-list ul{max-height:9rem}
   .job-list .timing{display:grid}
   .branch-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
@@ -78,6 +107,10 @@ summary.job-count{display:list-item;cursor:pointer}
   <div class="jobs" id="ci-jobs" hidden></div>
   <div class="jobs" id="release-jobs" hidden></div>
 </section>
+<section id="repo-ci" aria-labelledby="repo-ci-title" hidden>
+  <h2 id="repo-ci-title">GitHub Actions</h2>
+  <div id="repo-cards" class="repo-grid"></div>
+</section>
 <p id="freshness">Loading current deployment…</p>
 <section><h2>ArchiveBox running now</h2><p id="commit"></p><p id="version"></p><small id="image" class="muted"></small></section>
 <section><h2>GitHub branch comparison</h2><table class="branch-table" role="table"><thead><tr><th>Branch</th><th>Head commit</th><th>Server relative to head</th></tr></thead><tbody id="branches"></tbody></table><p id="branch-time" class="muted"></p></section>
@@ -93,6 +126,7 @@ const icons = {
   checks: '<path d="M12 3l7 3v5c0 4-2.5 7-7 10-4.5-3-7-6-7-10V6zM9 12l2 2 4-4"/>',
   publish: '<path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/>',
   registry: '<path d="M4 7l8-4 8 4v10l-8 4-8-4zm0 0 8 4 8-4m-8 4v10M8 5l8 4v4"/>',
+  watchtower: '<path d="M5 12h14v7H5zm2 4h.01M10 16h.01M12 3v6m-3-3 3 3 3-3"/>',
 };
 const marks = {
   success:['✓','Success'], in_progress:['↻','In progress'], queued:['…','Queued'],
@@ -102,7 +136,7 @@ const marks = {
   commit:['✓','Commit'], published:['✓','Published'], different:['◷','Published'], unknown:['?','Unknown'],
 };
 const prepareJob = 'prepare / Prepare the version before starting expensive jobs';
-let latest, live, comparison, lastRendered, liveRequest;
+let latest, live, comparison, watchtower, lastRendered, lastRepos, liveRequest;
 const checkedRunnerThreshold = new Set();
 
 function element(tag, text, className) {
@@ -145,9 +179,17 @@ function waitAverage(job, pools) {
   if (!pool) return null;
   return Object.hasOwn(pool.jobs, job.name) ? pool.jobs[job.name] : pool.average;
 }
-function waitETA(started, average) {
+function etaLabel(started, average) {
   const remaining = average - elapsed(started);
   return remaining >= 0 ? `ETA ${duration(Math.ceil(remaining))}` : `+${duration(-remaining)}`;
+}
+function estimate(started, average) {
+  const eta = element('span', average && started ? etaLabel(started, average.seconds) : 'ETA —', 'wait-eta');
+  if (average && started) {
+    eta.dataset.etaStarted = started;
+    eta.dataset.etaAverage = average.seconds;
+  }
+  return eta;
 }
 function timing(started, finished, average, wait) {
   const times = element('span', undefined, 'timing');
@@ -155,12 +197,7 @@ function timing(started, finished, average, wait) {
   if (wait !== undefined) {
     const avg = element('span', `Avg wait ${wait ? duration(wait.seconds) : '—'}`, 'build-avg');
     if (wait) avg.title = `${wait.count} runner starts`;
-    const eta = element('span', wait && started ? waitETA(started, wait.seconds) : 'ETA —', 'wait-eta');
-    if (wait && started) {
-      eta.dataset.waitStarted = started;
-      eta.dataset.waitAverage = wait.seconds;
-    }
-    times.append(avg, eta);
+    times.append(avg, estimate(started, wait));
   }
   if (average !== undefined) {
     const label = wait !== undefined ? 'Avg run' : 'Avg';
@@ -169,6 +206,73 @@ function timing(started, finished, average, wait) {
     times.append(avg);
   }
   return times;
+}
+function repoRun(repoUrl, run) {
+  const state = run.conclusion || run.status;
+  const [mark, status] = marks[state] || marks.unknown;
+  const href = `${repoUrl}/actions/runs/${run.id}/attempts/${run.run_attempt}`;
+  const jobs = run.failures || [];
+  const icon = external(jobs.length ? `${repoUrl}/actions/runs/${run.id}/job/${jobs[0].id}` : href, mark);
+  icon.className = 'repo-mark';
+  icon.dataset.state = state;
+  icon.title = status;
+  icon.setAttribute('aria-label', jobs.length ? `${status} · ${jobs[0].name}` : status);
+  const item = element('li', undefined, 'repo-run');
+  const line = element('div', undefined, 'repo-run-line');
+  const start = run.status === 'in_progress' ? run.run_started_at : run.created_at;
+  line.append(icon, external(href, run.name), timing(run.status !== 'completed' && start));
+  const avg = element('span', `Avg ${run.avg === null ? '—' : duration(run.avg)}`, 'build-avg');
+  line.lastElementChild.append(avg);
+  item.append(line);
+  if (jobs.length) {
+    const details = element('details');
+    const list = element('ul');
+    for (const job of jobs) {
+      const failure = element('li');
+      failure.append(external(`${repoUrl}/actions/runs/${run.id}/job/${job.id}`, job.name));
+      list.append(failure);
+    }
+    details.append(element('summary', `${jobs.length} failed ${jobs.length === 1 ? 'job' : 'jobs'}`), list);
+    item.append(details);
+  }
+  return item;
+}
+function renderRepos(repos = []) {
+  const section = document.querySelector('#repo-ci');
+  section.hidden = !repos.length;
+  const key = repos.map(repo => repo.checked_at).join();
+  if (key === lastRepos) return;
+  lastRepos = key;
+  const cards = repos.map((item, index) => {
+    const url = `https://github.com/ArchiveBox/${item.name}`;
+    const card = element('article', undefined, 'repo-card');
+    const heading = element('h3');
+    if (index < 3) heading.append(element('span', '★ ', 'repo-star'));
+    heading.append(external(`${url}/actions`, item.name.toLowerCase()));
+    const header = element('header');
+    const time = element('time', duration(Date.now() / 1000 - item.checked_at) + ' ago');
+    time.dateTime = new Date(item.checked_at * 1000).toISOString();
+    time.title = new Date(time.dateTime).toLocaleString();
+    time.dataset.repoChecked = item.checked_at;
+    header.append(heading, time);
+    card.append(header);
+    for (const scheduled of [false, true]) {
+      const runs = item.runs.filter(run => (run.event === 'schedule') === scheduled);
+      if (scheduled && !runs.length) continue;
+      const label = element('h4');
+      label.append(scheduled ? 'Scheduled' : external(`${url}/commit/${item.head}`, item.branch));
+      card.append(label);
+      if (!runs.length) {
+        card.append(element('span', 'No runs', 'build-state'));
+        continue;
+      }
+      const list = element('ul');
+      for (const run of runs) list.append(repoRun(url, run));
+      card.append(list);
+    }
+    return card;
+  });
+  document.querySelector('#repo-cards').replaceChildren(...cards);
 }
 function active(state) {
   return ['in_progress', 'queued', 'pending', 'requested', 'waiting'].includes(state);
@@ -192,7 +296,9 @@ function buildNode(label, icon, stage, href, average, current, checkedAt, waits)
   if (queued) {
     node.append(timing(queueStart(queued), null, average, waitAverage(queued, waits)));
   } else if (stage.started || average !== undefined) {
-    node.append(timing(stage.started, stage.finished, average));
+    const times = timing(stage.started, stage.finished, average);
+    if (icon === 'watchtower' && stage.state === 'in_progress') times.append(estimate(stage.started, average));
+    node.append(times);
   }
   const waiting = stage.jobsUnavailable ? 0 : stage.jobs?.filter(job => runnerWait(job, checkedAt)).length;
   if (waiting) node.append(element('span', `⚠ ${waiting} Queued · 5m+`, 'stage-runner'));
@@ -211,22 +317,29 @@ function stagesFor(tag, data) {
   const registry = {...image, state: image.revision ? (ci?.revision === image.revision ? 'published' : 'different') : 'unknown'};
   const commit = {state: ci ? 'commit' : 'unknown', revision: ci?.revision};
   const start = ['Commit', 'commit', commit, ci && `${repo}/commit/${ci.revision}`];
-  const end = ['Docker Hub', 'registry', registry, `https://hub.docker.com/r/archivebox/archivebox/tags?name=${tag}`];
-  if (!ci) return [start, end];
+  const end = [['Docker Hub', 'registry', registry, `https://hub.docker.com/r/archivebox/archivebox/tags?name=${tag}`]];
+  if (latest?.image_ref?.endsWith(`:${tag}`)) {
+    let stage = watchtower || {state:'unknown'};
+    // A registry sample from before the last update may still contain the old image.
+    if (stage.state === 'success' && Date.parse(stage.finished) / 1000 <= data.collected_at &&
+      image.revision && image.revision !== latest.deployed) stage = {state:'waiting'};
+    end.push(['Watchtower', 'watchtower', stage, null, watchtower?.average ?? null]);
+  }
+  if (!ci) return [start, ...end];
   const averages = data.averages || {};
   const ciUrl = actionLink(ci.id);
   const tested = ciStage(ci);
   if (tag === 'dev') {
     const release = data.release || {state: tested.state === 'skipped' || failed(ci.state) || ci.state === 'cancelled' ? 'skipped' : 'waiting'};
     return [start, ['CI', 'checks', tested, ciUrl, averages.dev ?? null],
-      ['Release', 'publish', release, actionLink(release.id) || `${repo}/actions/workflows/release.yml?query=branch%3Adev`, averages.release ?? null], end];
+      ['Release', 'publish', release, actionLink(release.id) || `${repo}/actions/workflows/release.yml?query=branch%3Adev`, averages.release ?? null], ...end];
   }
   const prepare = jobStage(ci.jobs, prepareJob, ci);
   const docker = jobStage(ci.jobs, dockerBuild, ci, 2);
   const early = jobStage(ci.jobs, earlyPublish, ci);
   return [start, ['Prepare release version', 'prepare', prepare, actionLink(ci.id, prepare.jobs[0]?.id), data.job_averages?.ci?.[prepareJob] ?? null],
     [dockerBuild, 'build', docker, ciUrl, averages.docker ?? null],
-    [earlyPublish, 'publish', early, actionLink(ci.id, early.jobs[0]?.id), averages.early ?? null], end];
+    [earlyPublish, 'publish', early, actionLink(ci.id, early.jobs[0]?.id), averages.early ?? null], ...end];
 }
 function runnerWait(job, checkedAt) {
   return job.state === 'queued' && checkedAt * 1000 - Date.parse(queueStart(job)) >= 300000;
@@ -285,7 +398,8 @@ function getBuilds() {
 }
 function renderBuilds() {
   const data = getBuilds();
-  const key = [data.checked_at, data.collected_at, data.ci?.id].join();
+  const key = [data.checked_at, data.collected_at, data.ci?.id, latest?.image_ref, latest?.deployed,
+    watchtower?.state, watchtower?.started, watchtower?.finished, watchtower?.average?.count].join();
   if (key === lastRendered) return;
   lastRendered = key;
   for (const tag of ['dev', 'dev-unstable']) {
@@ -293,7 +407,8 @@ function renderBuilds() {
     const now = stages.findIndex(([, , stage]) => stage.state === 'in_progress' || stage.state === 'queued');
     const next = now < 0 ? stages.findIndex(([, , stage]) => active(stage.state)) : now;
     document.querySelector(`#flow-${tag}`).replaceChildren(...stages.map((stage, i) =>
-      buildNode(stage[0], stage[1], stage[2], stage[3], stage[4], i === next, data.checked_at,
+      buildNode(stage[0], stage[1], stage[2], stage[3], stage[4], i === next ||
+        (stage[1] === 'watchtower' && stage[2].state === 'in_progress'), data.checked_at,
         tag === 'dev' && stage[1] === 'publish' ? data.wait_averages?.release : data.wait_averages?.ci)));
   }
   showJobs(document.querySelector('#ci-jobs'), 'CI', data.ci, data.checked_at, data.job_averages?.ci, data.wait_averages?.ci);
@@ -346,8 +461,11 @@ function comparisonProgress(name, branch, data) {
 }
 function updateClocks() {
   for (const time of document.querySelectorAll('[data-started]')) time.textContent = duration(elapsed(time.dataset.started));
-  for (const eta of document.querySelectorAll('[data-wait-started]')) {
-    eta.textContent = waitETA(eta.dataset.waitStarted, Number(eta.dataset.waitAverage));
+  for (const eta of document.querySelectorAll('[data-eta-started]')) {
+    eta.textContent = etaLabel(eta.dataset.etaStarted, Number(eta.dataset.etaAverage));
+  }
+  for (const time of document.querySelectorAll('[data-repo-checked]')) {
+    time.textContent = duration(Date.now() / 1000 - Number(time.dataset.repoChecked)) + ' ago';
   }
   for (const meter of document.querySelectorAll('.branch-meter')) {
     const {avg, start, finish, active: running} = meter.dataset;
@@ -420,6 +538,7 @@ async function refresh() {
     document.querySelector('#disk').textContent = `${latest.disk.available_gib} GiB available / ${(latest.disk.total_bytes / 1073741824).toFixed(1)} GiB · ${latest.disk.free_percent}% free`;
     document.querySelector('#disk-bar').value = 100 - latest.disk.free_percent;
     renderBuilds();
+    renderRepos(latest.repos);
     renderBranches();
     updateClocks();
   } catch (error) {
@@ -449,11 +568,24 @@ async function refreshGitHub() {
     updateClocks();
   }
 }
+async function refreshWatchtower() {
+  if (document.hidden) return;
+  try {
+    const response = await fetch('/watchtower.json', {cache:'no-store', signal:AbortSignal.timeout(1800)});
+    if (!response.ok) return;
+    watchtower = await response.json();
+    renderBuilds();
+  } catch {
+    // A container update can coincide with the request. Keep the last observed state.
+  }
+}
 renderBuilds();
 await refresh();
 void refreshGitHub();
+void refreshWatchtower();
 setInterval(refresh, 60000);
 setInterval(refreshGitHub, 240000);
+setInterval(refreshWatchtower, 2000);
 setInterval(() => { freshness(); updateClocks(); }, 1000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && Date.now() / 1000 - (getBuilds().checked_at || 0) >= 60) void refreshGitHub();

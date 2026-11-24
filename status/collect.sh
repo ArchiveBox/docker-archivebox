@@ -25,6 +25,18 @@ if (( now - builds_cached >= 600 )); then
     builds_pid=$!
 fi
 
+# Spread repository reads across the hour and keep the host heartbeat independent.
+repos='{}'
+if [[ -f data/repos.json ]]; then repos=$(cat data/repos.json); fi
+repos_cached=$(jq -r '.collected_at // 0' <<< "$repos")
+if (( now - repos_cached >= 180 )); then
+    (
+        node collect-repos.mjs > data/repos.json.tmp
+        mv data/repos.json.tmp data/repos.json
+    ) &
+    repos_pid=$!
+fi
+
 branches='{}'
 if [[ -f data/branches.json ]]; then branches=$(cat data/branches.json); fi
 cached=$(jq -r '.checked_at // 0' <<< "$branches")
@@ -48,9 +60,14 @@ fi
 if [[ -n ${builds_pid:-} ]] && wait "$builds_pid"; then
     builds=$(cat data/builds.json)
 fi
+if [[ -n ${repos_pid:-} ]] && wait "$repos_pid"; then
+    repos=$(cat data/repos.json)
+fi
 jq -n --argjson now "$now" --arg deployed "$deployed" --arg version "$version" --arg image "$image" --arg image_ref "$image_ref" \
   --argjson total "$total" --argjson available "$available" --argjson branches "$branches" --slurpfile builds <(printf '%s\n' "$builds") \
+  --slurpfile repo_ci <(printf '%s\n' "$repos") \
   '{updated_at:$now,host:"cabbage",deployed:$deployed,version:$version,image:$image,image_ref:$image_ref,branches:$branches,builds:$builds[0],
+    repos:[($repo_ci[0].repos // [])[] | del(.history)],
     disk:{path:"/",total_bytes:$total,available_bytes:$available,available_gib:(($available/1073741824*10|floor)/10),free_percent:(($available/$total*1000|floor)/10)}}' > public/deployment.json.tmp
 chmod 644 public/deployment.json.tmp
 mv public/deployment.json.tmp public/deployment.json
