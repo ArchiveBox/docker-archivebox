@@ -111,6 +111,7 @@ summary.job-count{display:list-item;cursor:pointer}
 <section class="builds" aria-label="Docker build status">
   <div class="build-row" role="group" aria-labelledby="tag-dev"><div><code class="build-tag" id="tag-dev">:dev</code><a class="build-source" hidden></a></div><ol class="build-flow" id="flow-dev"></ol></div>
   <div class="build-row" role="group" aria-labelledby="tag-dev-unstable"><div><code class="build-tag" id="tag-dev-unstable">:dev-unstable</code><a class="build-source" hidden></a></div><ol class="build-flow" id="flow-dev-unstable"></ol></div>
+  <p id="build-freshness" class="muted"></p>
   <div class="jobs" id="ci-jobs" hidden></div>
   <div class="jobs" id="release-jobs" hidden></div>
 </section>
@@ -143,7 +144,7 @@ const marks = {
   commit:['✓','Commit'], published:['✓','Published'], different:['◷','Published'], unknown:['?','Unknown'],
 };
 const prepareJob = 'prepare / Prepare the version before starting expensive jobs';
-let latest, live, comparison, watchtower, lastRendered, lastRepos, liveRequest;
+let latest, live, comparison, watchtower, lastRendered, lastRepos, liveRequest, liveError;
 const checkedRunnerThreshold = new Set();
 
 function element(tag, text, className) {
@@ -505,6 +506,15 @@ function updateClocks() {
     meter.querySelector('.branch-timing').textContent = `${duration(time)} · Avg ${duration(mean)}${comparison}`;
   }
   const builds = getBuilds();
+  const buildStatus = document.querySelector('#build-freshness');
+  const age = builds.checked_at ? Math.max(0, Math.floor(Date.now() / 1000 - builds.checked_at)) : null;
+  // The host heartbeat can be current while GitHub still serves the last
+  // collected run. Show the age of the data actually used by the build stages.
+  buildStatus.textContent = age === null ? 'GitHub status unavailable' :
+    `GitHub checked ${new Date(builds.checked_at * 1000).toLocaleString()} · ${duration(age)} ago${age > 600 ? ' — STALE' : ''}`;
+  if (liveError) buildStatus.append(' · GitHub refresh failed');
+  buildStatus.title = liveError || '';
+  buildStatus.className = liveError || age === null || age > 600 ? 'bad' : 'muted';
   if (document.hidden || liveRequest || !builds.checked_at) return;
   for (const run of [builds.ci, builds.release]) {
     if (!run || run.jobsUnavailable || checkedRunnerThreshold.has(run.id)) continue;
@@ -547,7 +557,7 @@ function freshness() {
   if (!latest) return;
   const age = Math.floor(Date.now() / 1000 - latest.updated_at);
   const el = document.querySelector('#freshness');
-  el.textContent = `Updated ${new Date(latest.updated_at * 1000).toLocaleString()} · ${age}s ago${age > 180 ? ' — STALE: collector is not updating' : ''}`;
+  el.textContent = `Host updated ${new Date(latest.updated_at * 1000).toLocaleString()} · ${age}s ago${age > 180 ? ' — STALE: collector is not updating' : ''}`;
   el.className = age > 180 ? 'bad' : 'muted';
 }
 async function refresh() {
@@ -576,6 +586,7 @@ async function refreshGitHub() {
   liveRequest = true;
   try {
     live = await currentBuilds(getBuilds());
+    liveError = live.ci?.jobsUnavailable ? 'GitHub job details unavailable' : null;
     renderBuilds();
     const ci = live.ci;
     const deployed = latest?.deployed;
@@ -584,8 +595,9 @@ async function refreshGitHub() {
       const result = await github(`compare/${deployed}...${ci.revision}`);
       comparison = {head:ci.revision, deployed, status:result.status, behind:result.ahead_by, ahead:result.behind_by, checked_at:live.checked_at};
     }
-  } catch {
+  } catch (error) {
     // The collector's snapshot remains available when GitHub can't be reached.
+    liveError = error.message;
   } finally {
     liveRequest = false;
     renderBranches();
