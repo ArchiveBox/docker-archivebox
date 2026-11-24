@@ -18,7 +18,7 @@ export function ciRuns(branch, token, count = 1) {
   return github(`actions/workflows/ci.yml/runs?branch=${branch}&event=push&per_page=${count}`, token);
 }
 
-function jobRecord(job) {
+export function jobRecord(job) {
   const labels = job.labels?.map(label => label.toLowerCase()).sort();
   return {
     id: job.id, name: job.name, state: job.conclusion || job.status,

@@ -1,6 +1,7 @@
 import {execFile} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
 import {promisify} from 'node:util';
+import {jobRecord} from './public/builds.mjs';
 
 const exec = promisify(execFile);
 const names = [
@@ -19,7 +20,9 @@ const bad = new Set(['failure', 'timed_out', 'startup_failure', 'action_required
 const active = run => run.status !== 'completed';
 const runKey = run => `${run.id}.${run.run_attempt}`;
 const historyKey = run => `${run.workflow_id}:${run.event}`;
-let remaining = Infinity;
+// At one authenticated refresh per minute, leave capacity for build and branch
+// lookups within GitHub's hourly allowance even when many matrices are active.
+let remaining = token && !seed ? 60 : Infinity;
 let reserve = 0;
 
 async function github(path) {
@@ -47,14 +50,18 @@ function record(history, run) {
   for (const key of ordered.slice(20)) delete samples[key];
 }
 
-async function failureJobs(path, run) {
+async function workflowJobs(path, run) {
   const failures = [];
+  const activeJobs = [];
   const cancelled = [];
   const attempt = `${path}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=50`;
   // Large matrix responses have failed at 100 jobs per page. Keep page offsets fixed.
   for (let page = 1; ; page++) {
     const {jobs, total_count: total} = await github(`${attempt}&page=${page}`);
     failures.push(...jobs.filter(job => bad.has(job.conclusion)).map(job => ({id:job.id, name:job.name})));
+    // This response is already fetched for failures. Keep runner assignments
+    // for active work too, so contention does not require a second API pass.
+    activeJobs.push(...jobs.filter(active).map(jobRecord));
     cancelled.push(...jobs.filter(job => job.conclusion === 'cancelled'));
     if (page * 50 >= total) break;
   }
@@ -66,13 +73,13 @@ async function failureJobs(path, run) {
       if (annotations.some(item => item.annotation_level === 'failure')) failures.push({id:job.id, name:job.name});
     }
   }
-  return failures;
+  return {failures, jobs:activeJobs};
 }
 
 function latestRuns(runs) {
   const workflows = new Map();
   for (const run of [...runs].sort((a, b) => b.id - a.id)) {
-    const key = run.workflow_id;
+    const key = `${run.workflow_id}:${run.head_branch}`;
     if (!workflows.has(key)) workflows.set(key, [run]);
     else if (active(run) && !workflows.get(key).some(item => item.id === run.id)) workflows.get(key).push(run);
   }
@@ -114,7 +121,8 @@ async function collect(name, previous = {}) {
   const branch = stdout.match(/^ref: refs\/heads\/(.+)\tHEAD$/m)?.[1];
   const head = stdout.match(/^([a-f0-9]{40})\tHEAD$/m)?.[1];
   if (!branch || !head) throw Error(`Missing default branch for ${slug}`);
-  const {workflow_runs: recent} = await github(`${path}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=50`);
+  // Runner capacity is shared with PRs and other branches, not just HEAD.
+  const {workflow_runs: recent} = await github(`${path}/actions/runs?per_page=50`);
   const history = {...previous.history};
   const prior = previous.runs || [];
   const boot = seed ? await seedRuns(path, branch, head, recent, prior, history) : null;
@@ -136,15 +144,21 @@ async function collect(name, previous = {}) {
   // Retain infrequent scheduled runs well after they leave the repository's recent list.
   const candidates = new Map(previousRuns.map(run => [run.id, run]));
   for (const run of incoming) {
-    if (run.event.startsWith('pull_request')) continue;
-    if (run.event === 'schedule' && activeWorkflows && !activeWorkflows.has(run.workflow_id)) continue;
-    record(history, run);
-    if (run.event === 'schedule' || run.head_sha === head) {
+    if (!run.event.startsWith('pull_request') && run.head_branch === branch) record(history, run);
+    if ((run.event.startsWith('pull_request') && !active(run)) ||
+        (run.event === 'schedule' && activeWorkflows && !activeWorkflows.has(run.workflow_id)) ||
+        !(active(run) || run.event === 'schedule' || run.head_sha === head)) {
+      // An active older head/PR must disappear when its completion arrives;
+      // retaining its cached record would falsely keep runners busy forever.
+      candidates.delete(run.id);
+      continue;
+    }
+    if (active(run) || run.event === 'schedule' || run.head_sha === head) {
       const cached = prior.find(item => runKey(item) === runKey(run) && item.status === run.status);
       candidates.set(run.id, {...run, failures:cached?.failures});
     }
   }
-  const eligible = [...candidates.values()].filter(run => run.event === 'schedule' || run.head_sha === head);
+  const eligible = [...candidates.values()].filter(run => active(run) || run.event === 'schedule' || run.head_sha === head);
   const selected = [...latestRuns(eligible.filter(run => run.event !== 'schedule')),
     ...latestRuns(eligible.filter(run => run.event === 'schedule'))];
   const runs = [];
@@ -159,17 +173,34 @@ async function collect(name, previous = {}) {
       }
     }
     let {failures} = run;
+    // An API failure must not erase the last observed assignments or make
+    // them look current. Rerun attempts must never inherit the old job IDs.
+    const cached = prior.find(item => runKey(item) === runKey(run));
+    let jobs = active(run) ? cached?.jobs : [];
+    let jobs_checked_at = cached?.jobs_checked_at;
+    let jobsUnavailable, jobsError;
     if (active(run) || (bad.has(run.conclusion) && !failures?.length)) {
-      try { failures = await failureJobs(path, run); }
-      catch (error) { console.error(error.message); }
+      try {
+        const result = await workflowJobs(path, run);
+        failures = result.failures;
+        jobs = active(run) ? result.jobs : [];
+        jobs_checked_at = Math.floor(Date.now() / 1000);
+      } catch (error) {
+        jobsUnavailable = true;
+        jobsError = error.message;
+        console.error(error.message);
+      }
     }
     const times = Object.values(history[historyKey(run)] || {});
     const avg = times.length ? Math.round(times.reduce((sum, s) => sum + s, 0) / times.length) : null;
     runs.push({
       id:run.id, workflow_id:run.workflow_id, run_attempt:run.run_attempt, name:run.name,
-      event:run.event, head_sha:run.head_sha, status:run.status, conclusion:run.conclusion,
+      event:run.event, head_sha:run.head_sha, head_branch:run.head_branch,
+      // GitHub can call a whole matrix queued even while its jobs occupy runners.
+      status:active(run) && jobs?.some(job => job.state === 'in_progress') ? 'in_progress' : run.status,
+      conclusion:run.conclusion,
       run_started_at:run.run_started_at, created_at:run.created_at, updated_at:run.updated_at,
-      avg, failures,
+      avg, failures, jobs, jobs_checked_at, jobsUnavailable, jobsError,
     });
   }
   return {name, branch, head, checked_at:now, workflows_checked_at:workflowsChecked, runs, history};
@@ -189,10 +220,11 @@ if (!seed && !token) {
 const previous = new Map(cache.repos.map(repo => [repo.name, repo]));
 const attempted = cache.attempted || {};
 const due = seed ? names : [...names].sort((a, b) =>
-  (attempted[a] || previous.get(a)?.checked_at || 0) - (attempted[b] || previous.get(b)?.checked_at || 0)).slice(0, 1);
+  (attempted[a] || previous.get(a)?.checked_at || 0) - (attempted[b] || previous.get(b)?.checked_at || 0)).slice(0, token ? names.length : 1);
 if (remaining > reserve) {
-  const batchSize = seed ? 3 : 1;
+  const batchSize = seed || token ? 3 : 1;
   for (let i = 0; i < due.length; i += batchSize) {
+    if (remaining <= reserve) break;
     await Promise.all(due.slice(i, i + batchSize).map(async name => {
       attempted[name] = now;
       try {

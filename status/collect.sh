@@ -4,6 +4,8 @@ set -euo pipefail
 cd /opt/archivebox.status
 # shellcheck source=/dev/null
 source .env
+# Sourced assignments are otherwise invisible to the Node collectors.
+export GH_TOKEN
 mkdir -p public data
 now=$(date +%s)
 container=archiveboxdemo-archivebox-1
@@ -13,11 +15,20 @@ version=$(docker inspect "$container" --format '{{index .Config.Labels "org.open
 read -r image image_ref < <(docker inspect "$container" --format '{{.Image}} {{.Config.Image}}')
 read -r total available < <(df -B1 --output=size,avail / | tail -1)
 github=https://api.github.com/repos/ArchiveBox/ArchiveBox
+builds_interval=600
+repos_interval=180
+github_curl_config=''
+if [[ -n ${GH_TOKEN:-} ]]; then
+    builds_interval=60
+    repos_interval=60
+    # Keep the credential out of curl's process arguments and collector output.
+    printf -v github_curl_config 'header = "Authorization: Bearer %s"\n' "$GH_TOKEN"
+fi
 
 builds='{}'
 if [[ -f data/builds.json ]]; then builds=$(cat data/builds.json); fi
 builds_cached=$(jq -r '.collected_at // .checked_at // 0' <<< "$builds")
-if (( now - builds_cached >= 600 )); then
+if (( now - builds_cached >= builds_interval )); then
     (
         node collect-builds.mjs > data/builds.json.tmp
         mv data/builds.json.tmp data/builds.json
@@ -25,11 +36,11 @@ if (( now - builds_cached >= 600 )); then
     builds_pid=$!
 fi
 
-# Spread repository reads across the hour and keep the host heartbeat independent.
+# Anonymous reads rotate across the hour; authenticated reads refresh every repo.
 repos='{}'
 if [[ -f data/repos.json ]]; then repos=$(cat data/repos.json); fi
 repos_cached=$(jq -r '.collected_at // 0' <<< "$repos")
-if (( now - repos_cached >= 180 )); then
+if (( now - repos_cached >= repos_interval )); then
     (
         node collect-repos.mjs > data/repos.json.tmp
         mv data/repos.json.tmp data/repos.json
@@ -45,9 +56,9 @@ if (( now - cached >= 600 )) || [[ "$cached_commit" != "$deployed" ]]; then
     branches=$(jq -n --arg deployed "$deployed" --argjson now "$now" '{deployed:$deployed,checked_at:$now}')
     for branch in dev main; do
         # Resolve the head first, then compare exact immutable commits.
-        if head_json=$(curl -fsS --max-time 20 "$github/commits/$branch") &&
+        if head_json=$(printf '%s' "$github_curl_config" | curl --config - -fsS --max-time 20 "$github/commits/$branch") &&
            head=$(jq -er '.sha | select(test("^[0-9a-f]{40}$"))' <<< "$head_json") &&
-           comparison=$(curl -fsS --max-time 20 "$github/compare/$deployed...$head"); then
+           comparison=$(printf '%s' "$github_curl_config" | curl --config - -fsS --max-time 20 "$github/compare/$deployed...$head"); then
             item=$(jq --arg head "$head" '{head:$head,status:.status,behind:.ahead_by,ahead:.behind_by}' <<< "$comparison")
         else
             item='{"error":"GitHub lookup unavailable; comparison unknown"}'

@@ -24,19 +24,22 @@ and root filesystem available space. Behind/ahead counts are computed against
 immutable GitHub commit IDs; a diverged main branch is identified explicitly.
 The two Docker build diagrams follow the latest dev push through the GitHub
 Actions jobs and show the revisions currently published on Docker Hub. The jobs
-show live elapsed times, failures, and jobs queued for at least five minutes.
+show live elapsed times, failures, and jobs waiting for runners. Blocked stages
+link to their prerequisites and the shared list of running jobs across repositories.
 The branch comparison shows elapsed time and ETA against the historical average
 for the matching CI run or the early image published for the Cabbage dev deployment.
 The collector keeps the latest 20 measured successful samples per stage and per
 job within each workflow. Job averages use runner time from start to finish. The
 runner wait average uses GitHub job creation and start times, matched to the
 job's runner labels. Jobs without matching history use their runner pool's
-average. The ETA counts down to that average. The browser refreshes GitHub
-Actions directly every four minutes and rechecks jobs
-when the first runner wait in a run crosses five minutes.
+average. The ETA counts down to that average. The browser checks GitHub
+Actions every four minutes when the server snapshot is more than 90 seconds old.
 The host collector runs every minute, caches GitHub comparisons for ten minutes,
 and refreshes them immediately if the deployed revision changes. Build and tag
-status refresh every ten minutes. GitHub lookup errors are shown as unknown.
+status refresh every ten minutes without authentication. With `GH_TOKEN` in
+the private `.env`, build and repository status refresh every minute. A
+fine-grained token with public repository read-only access is sufficient.
+GitHub lookup errors are shown as unknown.
 The page marks host metadata stale after three
 minutes; a Gatus heartbeat also fails when the collector stops updating.
 
