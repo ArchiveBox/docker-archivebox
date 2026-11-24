@@ -57,6 +57,13 @@ summary.job-count{display:list-item;cursor:pointer}
   .build-tag{margin:0 0 0 4px}
   .build-label{overflow-wrap:anywhere;font-size:.7rem}
   .job-list ul{max-height:9rem}
+  .branch-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .branch-table tbody{display:grid;gap:12px}
+  .branch-table tr{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 10px}
+  .branch-table td{padding:0}
+  .branch-table td:last-child{grid-column:1/-1}
+  .branch-table tr + tr{border-top:1px solid #8884;padding-top:12px}
+  .branch-table .sha-tail{display:none}
 }
 </style>
 <a href="/">← Service status & latency charts</a>
@@ -69,7 +76,7 @@ summary.job-count{display:list-item;cursor:pointer}
 </section>
 <p id="freshness">Loading current deployment…</p>
 <section><h2>ArchiveBox running now</h2><p id="commit"></p><p id="version"></p><small id="image" class="muted"></small></section>
-<section><h2>GitHub branch comparison</h2><table><thead><tr><th>Branch</th><th>Head commit</th><th>Server relative to head</th></tr></thead><tbody id="branches"></tbody></table><p id="branch-time" class="muted"></p></section>
+<section><h2>GitHub branch comparison</h2><table class="branch-table" role="table"><thead><tr><th>Branch</th><th>Head commit</th><th>Server relative to head</th></tr></thead><tbody id="branches"></tbody></table><p id="branch-time" class="muted"></p></section>
 <section><h2>Cabbage disk space</h2><p id="disk"></p><progress id="disk-bar" max="100"></progress><p class="muted">Root filesystem (/). The status check fails below 10 GiB or 10% available.</p></section>
 <p class="muted">Host metadata refreshes every minute; GitHub comparisons every 10 minutes and after a deployment. Revision comes from the running container's OCI image label. Monitoring is hosted on Cabbage, so a full host outage also takes this page offline.</p>
 <script type="module">
@@ -176,7 +183,7 @@ function stagesFor(tag, data) {
   if (tag === 'dev') {
     const release = data.release || {state: tested.state === 'skipped' || failed(ci.state) || ci.state === 'cancelled' ? 'skipped' : 'waiting'};
     return [start, ['CI', 'checks', tested, ciUrl, averages.dev],
-      ['Release', 'publish', release, actionLink(release.id) || ciUrl, averages.release], end];
+      ['Release', 'publish', release, actionLink(release.id) || `${repo}/actions/workflows/release.yml?query=branch%3Adev`, averages.release], end];
   }
   const prepare = jobStage(ci.jobs, prepareJob, ci);
   const docker = jobStage(ci.jobs, dockerBuild, ci, 2);
@@ -250,8 +257,13 @@ function renderBuilds() {
   showJobs(document.querySelector('#ci-jobs'), 'CI', data.ci, data.checked_at);
   showJobs(document.querySelector('#release-jobs'), 'Release', data.release, data.checked_at);
 }
-function link(sha) {
+function link(sha, compact = false) {
   const a = external(`${repo}/commit/${sha}`, sha);
+  if (compact) {
+    a.textContent = sha.slice(0, 12);
+    a.append(element('span', sha.slice(12), 'sha-tail'));
+    a.setAttribute('aria-label', sha);
+  }
   const code = element('code');
   code.append(a);
   return code;
@@ -333,7 +345,7 @@ function renderBranches() {
       head.textContent = 'Unknown';
       relative.textContent = b?.error || '';
     } else {
-      head.append(link(b.head));
+      head.append(link(b.head, true));
       const text = !b.behind && !b.ahead ? 'Up to date' :
         `${b.behind} commits behind · ${b.ahead} commits ahead${b.status === 'diverged' ? ' (diverged)' : ''}`;
       relative.append(external(`${repo}/compare/${latest.deployed}...${b.head}`, text));
