@@ -443,14 +443,36 @@ function showPipelineWait(flow, stages, data, work) {
     const prerequisite = icon === 'watchtower' ? 'Docker Hub image' : stages[pending - 1]?.[0];
     const prior = stages[pending - 1]?.[2];
     const jobs = prior?.jobs?.filter(job => job.state !== 'success' && job.state !== 'skipped') || [];
-    note.append('waiting for ');
-    if (jobs.length && jobs.length <= 3) {
-      jobs.forEach((job, index) => {
+    const failures = jobs.filter(job => failed(job.state));
+    const running = jobs.filter(job => job.state === 'in_progress');
+    // A failed prerequisite already blocks publication, even while the rest
+    // of the matrix is running. Name it before describing remaining work.
+    note.append(failures.length ? 'blocked by ' : 'waiting for ');
+    if (jobs.length) {
+      const named = (failures.length ? failures : running.length ? running : jobs).slice(0, 3);
+      named.forEach((job, index) => {
         if (index) note.append(', ');
         note.append(external(actionLink(data.ci.id, job.id), job.name.replace(`${dockerBuild} / `, '')));
-        if (job.state === 'queued') note.append(` (${queueLabel(work)})`);
+        note.append(` (${job.state === 'queued' ? queueLabel(work) : (marks[job.state]?.[1] || job.state).toLowerCase()})`);
       });
-    } else note.append(prerequisite || 'GitHub workflow');
+      if (jobs.length > named.length) {
+        for (const [state, label] of [['failure', 'failed'], ['in_progress', 'running'], ['queued', 'queued']]) {
+          const count = jobs.filter(job => state === 'failure' ? failed(job.state) : job.state === state).length;
+          if (!count) continue;
+          const link = element('a', `${count} ${label} ${count === 1 ? 'job' : 'jobs'}`);
+          link.href = '#ci-jobs';
+          link.addEventListener('click', () => {
+            // Reuse the existing complete job lists instead of truncating a
+            // large matrix back to the unhelpful workflow name "CI".
+            const summary = document.querySelector(`#ci-jobs .job-count[data-state="${state}"]`) ||
+              (state === 'queued' && document.querySelector('#ci-jobs .job-count[data-state="runner"]'));
+            if (summary?.parentElement.tagName === 'DETAILS') summary.parentElement.open = true;
+          });
+          note.append(' · ', link);
+        }
+      }
+    } else note.append(prior?.jobsUnavailable ? 'GitHub job status' :
+      prerequisite === 'CI' ? 'GitHub to finish the workflow' : prerequisite || 'GitHub workflow');
   }
 }
 function stagesFor(tag, data) {
