@@ -19,10 +19,27 @@ export function ciRuns(branch, token, count = 1) {
 }
 
 function jobRecord(job) {
+  const labels = job.labels?.map(label => label.toLowerCase()).sort();
   return {
     id: job.id, name: job.name, state: job.conclusion || job.status,
     started: job.started_at, finished: job.completed_at,
+    created: job.created_at,
+    runnerPool: labels?.length ? labels.join(',') : undefined,
+    assigned: job.runner_id > 0 || undefined,
   };
+}
+
+export async function workflowJobs(run, token, pageSize = 50) {
+  const path = `actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=${pageSize}`;
+  const first = await github(path, token);
+  const remaining = Array.from({length: Math.max(0, Math.ceil(first.total_count / pageSize) - 1)},
+    (_, index) => github(`${path}&page=${index + 2}`, token));
+  const pages = [first, ...await Promise.all(remaining)];
+  return [...new Map(pages.flatMap(page => page.jobs).map(job => [job.id, job])).values()];
+}
+
+export async function ciJobsWithRunners(run, token) {
+  return (await workflowJobs(run, token)).map(jobRecord);
 }
 
 export async function ciJobs(run, token) {
@@ -45,7 +62,7 @@ export function runRecord(run, jobs = []) {
 }
 
 export async function releaseRecord(run, token) {
-  const {jobs} = await github(`actions/runs/${run.id}/jobs?per_page=30`, token);
+  const jobs = await workflowJobs(run, token, 30);
   const record = runRecord(run, jobs.map(jobRecord));
   const publisher = jobs.find(job => job.name === testedPublish);
   const published = publisher?.steps?.find(step => step.name === promote);
@@ -59,6 +76,30 @@ export async function releaseRecord(run, token) {
   return record;
 }
 
+async function currentCIJobs(run, previous, token, refreshWaits) {
+  const routed = new Map((previous || []).filter(job => job.runnerPool).map(job => [job.id, job]));
+  const needsRouting = refreshWaits || !routed.size;
+  if (needsRouting) {
+    try {
+      return await ciJobsWithRunners(run, token);
+    } catch (error) {
+      if (token || typeof window === 'undefined') console.error(error.message);
+    }
+  }
+  const checks = await ciJobs(run, token);
+  if (!needsRouting && checks.some(job => job.state === 'queued' && !routed.has(job.id))) {
+    try {
+      return await ciJobsWithRunners(run, token);
+    } catch {
+      // Check runs still provide the current status.
+    }
+  }
+  return checks.map(job => {
+    const prior = routed.get(job.id);
+    return prior ? {...job, created: prior.created, runnerPool: prior.runnerPool, assigned: prior.assigned} : job;
+  });
+}
+
 export async function currentBuilds(previous = {}, token, includeMain = false) {
   const devRequest = ciRuns('dev', token);
   const mainRequest = includeMain ? ciRuns('main', token) : Promise.resolve(null);
@@ -69,12 +110,12 @@ export async function currentBuilds(previous = {}, token, includeMain = false) {
   const run = devRuns[0];
   if (!run) throw new Error('No dev CI workflow runs');
 
-  async function withJobs(raw, old) {
+  async function withJobs(raw, old, dev) {
     const record = runRecord(raw);
     const same = old?.id === record.id && old.attempt === record.attempt;
     if (same && record.finished && old.finished && !old.jobsUnavailable) return old;
     try {
-      record.jobs = await ciJobs(raw, token);
+      record.jobs = dev ? await currentCIJobs(raw, same ? old.jobs : [], token, includeMain) : await ciJobs(raw, token);
       // A workflow can report queued while its matrix already has running jobs.
       if (!record.finished && record.jobs.some(job => job.state === 'in_progress')) record.state = 'in_progress';
       if (!record.started && record.jobs.some(job => job.started &&
@@ -87,7 +128,7 @@ export async function currentBuilds(previous = {}, token, includeMain = false) {
     return record;
   }
   const [ci, main] = await Promise.all([
-    withJobs(run, previous.ci), mainRun ? withJobs(mainRun, previous.main) : previous.main,
+    withJobs(run, previous.ci, true), mainRun ? withJobs(mainRun, previous.main, false) : previous.main,
   ]);
 
   let release = null;

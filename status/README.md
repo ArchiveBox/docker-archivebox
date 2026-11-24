@@ -29,7 +29,10 @@ The branch comparison shows elapsed time and ETA against the historical average
 for the matching CI run or the early image published for the Cabbage dev deployment.
 The collector keeps the latest 20 measured successful samples per stage and per
 job within each workflow. Job averages use runner time from start to finish. The
-browser refreshes GitHub Actions directly every four minutes and rechecks jobs
+runner wait average uses GitHub job creation and start times, matched to the
+job's runner labels. Jobs without matching history use their runner pool's
+average. The ETA counts down to that average. The browser refreshes GitHub
+Actions directly every four minutes and rechecks jobs
 when the first runner wait in a run crosses five minutes.
 The host collector runs every minute, caches GitHub comparisons for ten minutes,
 and refreshes them immediately if the deployed revision changes. Build and tag

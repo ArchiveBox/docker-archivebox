@@ -27,6 +27,7 @@ a.build-node:hover .build-label,a.build-node:focus-visible .build-label{text-dec
 .build-revision{color:GrayText;font-size:.7rem}
 .elapsed,.branch-timing{font-variant-numeric:tabular-nums}
 .timing{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:6px;font-variant-numeric:tabular-nums}
+.wait-eta{font-size:.7rem;font-weight:650}
 .jobs{border-top:1px solid #8884;padding:12px 0;font-size:.8rem}
 .jobs-heading{display:flex;align-items:center;gap:10px;font-weight:650;margin-bottom:8px}
 .jobs-heading a,.job-list li a,.branch-progress a{color:LinkText}
@@ -136,11 +137,33 @@ function clock(started, finished) {
   if (!finished) time.dataset.started = started;
   return time;
 }
-function timing(started, finished, average, queued = false) {
+function queueStart(job) {
+  return job.created || job.started;
+}
+function waitAverage(job, pools) {
+  const pool = pools?.[job.runnerPool];
+  if (!pool) return null;
+  return Object.hasOwn(pool.jobs, job.name) ? pool.jobs[job.name] : pool.average;
+}
+function waitETA(started, average) {
+  const remaining = average - elapsed(started);
+  return remaining >= 0 ? `ETA ${duration(Math.ceil(remaining))}` : `+${duration(-remaining)}`;
+}
+function timing(started, finished, average, wait) {
   const times = element('span', undefined, 'timing');
   if (started) times.append(clock(started, finished));
+  if (wait !== undefined) {
+    const avg = element('span', `Avg wait ${wait ? duration(wait.seconds) : '—'}`, 'build-avg');
+    if (wait) avg.title = `${wait.count} runner starts`;
+    const eta = element('span', wait && started ? waitETA(started, wait.seconds) : 'ETA —', 'wait-eta');
+    if (wait && started) {
+      eta.dataset.waitStarted = started;
+      eta.dataset.waitAverage = wait.seconds;
+    }
+    times.append(avg, eta);
+  }
   if (average !== undefined) {
-    const label = queued ? 'Avg run' : 'Avg';
+    const label = wait !== undefined ? 'Avg run' : 'Avg';
     const avg = element('span', `${label} ${average ? duration(average.seconds) : '—'}`, 'build-avg');
     if (average) avg.title = `${average.count} successful runs`;
     times.append(avg);
@@ -150,7 +173,7 @@ function timing(started, finished, average, queued = false) {
 function active(state) {
   return ['in_progress', 'queued', 'pending', 'requested', 'waiting'].includes(state);
 }
-function buildNode(label, icon, stage, href, average, current, checkedAt) {
+function buildNode(label, icon, stage, href, average, current, checkedAt, waits) {
   const item = element('li', undefined, 'build-stage');
   const node = href ? external(href) : element('div');
   node.className = 'build-node';
@@ -164,10 +187,12 @@ function buildNode(label, icon, stage, href, average, current, checkedAt) {
     node.title = [stage.version, stage.revision].filter(Boolean).join(' · ');
   }
   if (stage.state !== 'commit') node.append(element('span', status, 'build-state'));
-  const queuedAt = stage.state === 'queued' && stage.jobs
-    ?.filter(job => job.state === 'queued').map(job => job.started).filter(Boolean).sort()[0];
-  if (stage.started || queuedAt || average !== undefined) {
-    node.append(timing(stage.started || queuedAt, stage.finished, average, Boolean(queuedAt && !stage.started)));
+  const queued = stage.state === 'queued' && stage.jobs
+    ?.filter(job => job.state === 'queued' && queueStart(job)).sort((a, b) => Date.parse(queueStart(a)) - Date.parse(queueStart(b)))[0];
+  if (queued) {
+    node.append(timing(queueStart(queued), null, average, waitAverage(queued, waits)));
+  } else if (stage.started || average !== undefined) {
+    node.append(timing(stage.started, stage.finished, average));
   }
   const waiting = stage.jobsUnavailable ? 0 : stage.jobs?.filter(job => runnerWait(job, checkedAt)).length;
   if (waiting) node.append(element('span', `⚠ ${waiting} Queued · 5m+`, 'stage-runner'));
@@ -204,9 +229,9 @@ function stagesFor(tag, data) {
     [earlyPublish, 'publish', early, actionLink(ci.id, early.jobs[0]?.id), averages.early ?? null], end];
 }
 function runnerWait(job, checkedAt) {
-  return job.state === 'queued' && checkedAt * 1000 - Date.parse(job.started) >= 300000;
+  return job.state === 'queued' && checkedAt * 1000 - Date.parse(queueStart(job)) >= 300000;
 }
-function jobList(run, jobs, label, state, open, averages) {
+function jobList(run, jobs, label, state, open, averages, waits) {
   const summary = jobs.length ? element('summary', `${jobs.length} ${label}`, 'job-count')
     : element('span', `0 ${label}`, 'job-count');
   summary.dataset.state = state;
@@ -219,14 +244,16 @@ function jobList(run, jobs, label, state, open, averages) {
     const row = element('li');
     row.append(external(actionLink(run.id, job.id), job.name));
     const average = Object.hasOwn(averages, job.name) ? averages[job.name] : null;
-    row.append(timing(job.started, job.finished, average, job.state === 'queued'));
+    row.append(job.state === 'queued'
+      ? timing(queueStart(job), null, average, waitAverage(job, waits))
+      : timing(job.started, job.finished, average));
     if (state === 'failure') row.append(element('span', marks[job.state]?.[1], 'job-state'));
     list.append(row);
   }
   details.append(list);
   return details;
 }
-function showJobs(container, label, run, checkedAt, averages = {}) {
+function showJobs(container, label, run, checkedAt, averages = {}, waits = {}) {
   if (!run) {
     container.hidden = true;
     return;
@@ -234,7 +261,8 @@ function showJobs(container, label, run, checkedAt, averages = {}) {
   container.hidden = false;
   const byStart = (a, b) => (Date.parse(a.started) || Infinity) - (Date.parse(b.started) || Infinity);
   const running = run.jobs.filter(job => job.state === 'in_progress').sort(byStart);
-  const queued = run.jobs.filter(job => job.state === 'queued').sort(byStart);
+  const queued = run.jobs.filter(job => job.state === 'queued')
+    .sort((a, b) => (Date.parse(queueStart(a)) || Infinity) - (Date.parse(queueStart(b)) || Infinity));
   const failures = run.jobs.filter(job => failed(job.state)).sort((a, b) => Date.parse(b.finished) - Date.parse(a.finished));
   const waiting = run.jobsUnavailable ? [] : queued.filter(job => runnerWait(job, checkedAt));
   const header = element('div', undefined, 'jobs-heading');
@@ -245,10 +273,10 @@ function showJobs(container, label, run, checkedAt, averages = {}) {
     return;
   }
   const body = element('div', undefined, 'jobs-body');
-  if (waiting.length) body.append(jobList(run, waiting, 'Waiting for a runner · 5m+', 'runner', true, averages));
+  if (waiting.length) body.append(jobList(run, waiting, 'Waiting for a runner · 5m+', 'runner', true, averages, waits));
   body.append(jobList(run, failures, 'Failed', 'failure', true, averages),
     jobList(run, running, 'In progress', 'in_progress', true, averages),
-    jobList(run, queued, 'Queued', 'queued', false, averages));
+    jobList(run, queued, 'Queued', 'queued', false, averages, waits));
   container.replaceChildren(header, body);
 }
 function getBuilds() {
@@ -265,10 +293,11 @@ function renderBuilds() {
     const now = stages.findIndex(([, , stage]) => stage.state === 'in_progress' || stage.state === 'queued');
     const next = now < 0 ? stages.findIndex(([, , stage]) => active(stage.state)) : now;
     document.querySelector(`#flow-${tag}`).replaceChildren(...stages.map((stage, i) =>
-      buildNode(stage[0], stage[1], stage[2], stage[3], stage[4], i === next, data.checked_at)));
+      buildNode(stage[0], stage[1], stage[2], stage[3], stage[4], i === next, data.checked_at,
+        tag === 'dev' && stage[1] === 'publish' ? data.wait_averages?.release : data.wait_averages?.ci)));
   }
-  showJobs(document.querySelector('#ci-jobs'), 'CI', data.ci, data.checked_at, data.job_averages?.ci);
-  showJobs(document.querySelector('#release-jobs'), 'Release', data.release, data.checked_at, data.job_averages?.release);
+  showJobs(document.querySelector('#ci-jobs'), 'CI', data.ci, data.checked_at, data.job_averages?.ci, data.wait_averages?.ci);
+  showJobs(document.querySelector('#release-jobs'), 'Release', data.release, data.checked_at, data.job_averages?.release, data.wait_averages?.release);
 }
 function link(sha, compact = false) {
   const a = external(`${repo}/commit/${sha}`, sha);
@@ -317,6 +346,9 @@ function comparisonProgress(name, branch, data) {
 }
 function updateClocks() {
   for (const time of document.querySelectorAll('[data-started]')) time.textContent = duration(elapsed(time.dataset.started));
+  for (const eta of document.querySelectorAll('[data-wait-started]')) {
+    eta.textContent = waitETA(eta.dataset.waitStarted, Number(eta.dataset.waitAverage));
+  }
   for (const meter of document.querySelectorAll('.branch-meter')) {
     const {avg, start, finish, active: running} = meter.dataset;
     const mean = Number(avg);

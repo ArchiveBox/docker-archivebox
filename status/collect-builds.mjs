@@ -1,6 +1,6 @@
 import {readFile, rename, writeFile} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
-import {ciJobs, ciRuns, currentBuilds, dockerBuild, earlyPublish, github, jobStage, releaseRecord, requiredCI, runRecord, testedPublish} from './public/builds.mjs';
+import {ciJobs, ciJobsWithRunners, ciRuns, currentBuilds, dockerBuild, earlyPublish, github, jobStage, releaseRecord, requiredCI, runRecord, testedPublish} from './public/builds.mjs';
 
 const cachePath = 'data/builds-history.json';
 const token = process.env.GH_TOKEN;
@@ -20,11 +20,16 @@ const jobHistory = history.jobs = {
   ci: Object.assign(Object.create(null), history.jobs?.ci),
   release: Object.assign(Object.create(null), history.jobs?.release),
 };
+const waitHistory = history.waits = {
+  ci: Object.assign(Object.create(null), history.waits?.ci),
+  release: Object.assign(Object.create(null), history.waits?.release),
+};
 
 function record(name, run, start, end, timings = history) {
   const duration = Math.round((Date.parse(end) - Date.parse(start)) / 1000);
   if (!(duration >= 0)) return;
-  const samples = timings[name] ||= {};
+  if (!Object.hasOwn(timings, name)) Object.defineProperty(timings, name, {value: {}, enumerable: true});
+  const samples = timings[name];
   samples[`${run.id}.${run.attempt}`] = duration;
   const ordered = Object.keys(samples).sort((a, b) => {
     const [aRun, aAttempt] = a.split('.').map(Number);
@@ -37,13 +42,25 @@ function record(name, run, start, end, timings = history) {
 function recordJobs(run, workflow) {
   for (const job of run.jobs) {
     if (job.state === 'success') record(job.name, run, job.started, job.finished, jobHistory[workflow]);
+    if (job.assigned && job.runnerPool && job.created && job.started && job.state !== 'queued') {
+      const pool = waitHistory[workflow][job.runnerPool] ||= {};
+      record(job.name, run, job.created, job.started, pool);
+    }
   }
 }
 
+function mean(values) {
+  return {seconds: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length), count: values.length};
+}
+
 function averages(timings) {
-  return Object.fromEntries(Object.entries(timings).map(([name, samples]) => {
-    const values = Object.values(samples);
-    return [name, {seconds: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length), count: values.length}];
+  return Object.fromEntries(Object.entries(timings).map(([name, samples]) => [name, mean(Object.values(samples))]));
+}
+
+function waitAverages(history) {
+  return Object.fromEntries(Object.entries(history).flatMap(([pool, jobs]) => {
+    const values = Object.values(jobs).flatMap(samples => Object.values(samples));
+    return values.length ? [[pool, {average: mean(values), jobs: averages(jobs)}]] : [];
   }));
 }
 
@@ -106,12 +123,13 @@ async function collect() {
   }
   if (data.main) recordCI(data.main, 'main');
   recordRelease(data.release);
-  const {jobs, ...stages} = history;
+  const {jobs, waits, ...stages} = history;
   const tags = Object.fromEntries(tagNames.flatMap((tag, index) => images[index] ? [[tag, images[index]]] : []));
   await writeFile(`${cachePath}.tmp`, JSON.stringify(history) + '\n');
   await rename(`${cachePath}.tmp`, cachePath);
   console.log(JSON.stringify({...data, averages: averages(stages),
     job_averages: {ci: averages(jobs.ci), release: averages(jobs.release)},
+    wait_averages: {ci: waitAverages(waits.ci), release: waitAverages(waits.release)},
     tags, collected_at: Math.floor(Date.now() / 1000)}));
 }
 
@@ -121,21 +139,25 @@ async function seedHistory() {
     github('actions/workflows/release.yml/runs?branch=dev&status=success&per_page=50', token),
     github('actions/workflows/ci.yml/runs?branch=dev&event=push&status=success&per_page=50', token),
   ]);
+  const recentDev = dev.workflow_runs.slice(0, 24);
+  const waits = new Set(recentDev.map(run => run.id));
   const candidates = [...new Map([
-    ...dev.workflow_runs.filter(run => run.status === 'completed').slice(0, 24),
+    ...recentDev,
     ...main.workflow_runs.filter(run => run.conclusion === 'success').slice(0, 12),
     ...successfulDev.workflow_runs,
   ].map(run => [run.id, run])).values()];
   for (let index = 0; index < candidates.length; index += 3) {
-    await Promise.all(candidates.slice(index, index + 3).map(async run => {
-      const jobs = await ciJobs(run, token);
+    const results = await Promise.allSettled(candidates.slice(index, index + 3).map(async run => {
+      const jobs = await (waits.has(run.id) ? ciJobsWithRunners(run, token) : ciJobs(run, token));
       const record = runRecord(run, jobs);
       recordCI(record, run.head_branch);
       if (run.head_branch === 'dev') recordDocker(record);
     }));
+    for (const result of results) if (result.status === 'rejected') console.error(result.reason.message);
   }
   for (let index = 0; index < releases.workflow_runs.length &&
-    (Object.keys(history.release || {}).length < 10 || Object.keys(jobHistory.release[testedPublish] || {}).length < 10); index += 4) {
+    (Object.keys(history.release || {}).length < 10 ||
+      !Object.values(waitHistory.release).some(pool => Object.keys(pool[testedPublish] || {}).length >= 10)); index += 4) {
     await Promise.all(releases.workflow_runs.slice(index, index + 4).map(async run => recordRelease(await releaseRecord(run, token))));
   }
   console.log(JSON.stringify(history));
