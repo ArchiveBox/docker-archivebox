@@ -103,7 +103,9 @@ summary.job-count{display:list-item;cursor:pointer}
   .build-row:has(.build-flow > li:nth-child(6)) .build-source:not([hidden]){display:inline;margin-left:8px}
   .build-flow:has(>li:nth-child(6)) > li:first-child{display:none}
   .build-flow:has(>li:nth-child(6)) > li:nth-child(2)::before{content:none}
-  .build-flow:has(>li:nth-child(6)) > li:last-child .build-label{overflow-wrap:normal}
+  .build-flow:has(>li:nth-child(6)) > li:last-child{flex:1.15}
+  .build-flow:has(>li:nth-child(6)) > li:last-child .build-label{overflow-wrap:normal;font-size:.64rem}
+  .build-flow:has(>li:nth-child(6)) .build-state{font-size:.65rem}
 }
 </style>
 <a href="/">← Service status & latency charts</a>
