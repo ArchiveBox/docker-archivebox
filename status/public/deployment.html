@@ -7,6 +7,7 @@
 .build-row{display:grid;grid-template-columns:8rem minmax(0,1fr);align-items:start;gap:12px;padding:16px 0}
 .build-row + .build-row{border-top:1px solid #8884}
 .build-tag{width:max-content;font-size:.875rem;font-weight:650;white-space:nowrap;margin-top:13px}
+.build-source{display:none;font: .7rem ui-monospace,monospace}
 .build-flow{display:flex;align-items:flex-start;gap:4px;padding:0;margin:0;list-style:none}
 .build-stage{position:relative;flex:1;min-width:0;text-align:center}
 .build-stage + .build-stage::before{content:'→';position:absolute;left:-12px;top:7px;color:GrayText;pointer-events:none}
@@ -98,12 +99,18 @@ summary.job-count{display:list-item;cursor:pointer}
   .branch-table tr + tr{border-top:1px solid #8884;padding-top:12px}
   .branch-table .sha-tail{display:none}
 }
+@media(max-width:450px){
+  .build-row:has(.build-flow > li:nth-child(6)) .build-source:not([hidden]){display:inline;margin-left:8px}
+  .build-flow:has(>li:nth-child(6)) > li:first-child{display:none}
+  .build-flow:has(>li:nth-child(6)) > li:nth-child(2)::before{content:none}
+  .build-flow:has(>li:nth-child(6)) > li:last-child .build-label{overflow-wrap:normal}
+}
 </style>
 <a href="/">← Service status & latency charts</a>
 <h1>Cabbage deployment</h1>
 <section class="builds" aria-label="Docker build status">
-  <div class="build-row" role="group" aria-labelledby="tag-dev"><code class="build-tag" id="tag-dev">:dev</code><ol class="build-flow" id="flow-dev"></ol></div>
-  <div class="build-row" role="group" aria-labelledby="tag-dev-unstable"><code class="build-tag" id="tag-dev-unstable">:dev-unstable</code><ol class="build-flow" id="flow-dev-unstable"></ol></div>
+  <div class="build-row" role="group" aria-labelledby="tag-dev"><div><code class="build-tag" id="tag-dev">:dev</code><a class="build-source" hidden></a></div><ol class="build-flow" id="flow-dev"></ol></div>
+  <div class="build-row" role="group" aria-labelledby="tag-dev-unstable"><div><code class="build-tag" id="tag-dev-unstable">:dev-unstable</code><a class="build-source" hidden></a></div><ol class="build-flow" id="flow-dev-unstable"></ol></div>
   <div class="jobs" id="ci-jobs" hidden></div>
   <div class="jobs" id="release-jobs" hidden></div>
 </section>
@@ -207,7 +214,7 @@ function timing(started, finished, average, wait) {
   }
   return times;
 }
-function repoRun(repoUrl, run) {
+function repoRun(repoUrl, run, average) {
   const state = run.conclusion || run.status;
   const [mark, status] = marks[state] || marks.unknown;
   const href = `${repoUrl}/actions/runs/${run.id}/attempts/${run.run_attempt}`;
@@ -221,7 +228,7 @@ function repoRun(repoUrl, run) {
   const line = element('div', undefined, 'repo-run-line');
   const start = run.status === 'in_progress' ? run.run_started_at : run.created_at;
   line.append(icon, external(href, run.name), timing(run.status !== 'completed' && start));
-  const avg = element('span', `Avg ${run.avg === null ? '—' : duration(run.avg)}`, 'build-avg');
+  const avg = element('span', `Avg ${average === null ? '—' : duration(average)}`, 'build-avg');
   line.lastElementChild.append(avg);
   item.append(line);
   if (jobs.length) {
@@ -240,7 +247,8 @@ function repoRun(repoUrl, run) {
 function renderRepos(repos = []) {
   const section = document.querySelector('#repo-ci');
   section.hidden = !repos.length;
-  const key = repos.map(repo => repo.checked_at).join();
+  const archiveboxCI = latest?.builds?.averages?.dev?.seconds;
+  const key = [archiveboxCI, ...repos.map(repo => repo.checked_at)].join();
   if (key === lastRepos) return;
   lastRepos = key;
   const cards = repos.map((item, index) => {
@@ -267,7 +275,11 @@ function renderRepos(repos = []) {
         continue;
       }
       const list = element('ul');
-      for (const run of runs) list.append(repoRun(url, run));
+      for (const run of runs) {
+        // The deployment history measures the full CI lanes and excludes no-op pushes.
+        const fullCI = item.name === 'ArchiveBox' && item.branch === 'dev' && run.event === 'push' && run.name === 'CI';
+        list.append(repoRun(url, run, fullCI ? archiveboxCI ?? run.avg : run.avg));
+      }
       card.append(list);
     }
     return card;
@@ -406,7 +418,16 @@ function renderBuilds() {
     const stages = stagesFor(tag, data);
     const now = stages.findIndex(([, , stage]) => stage.state === 'in_progress' || stage.state === 'queued');
     const next = now < 0 ? stages.findIndex(([, , stage]) => active(stage.state)) : now;
-    document.querySelector(`#flow-${tag}`).replaceChildren(...stages.map((stage, i) =>
+    const flow = document.querySelector(`#flow-${tag}`);
+    const source = flow.parentElement.querySelector('.build-source');
+    const revision = data.ci?.revision;
+    source.hidden = !revision;
+    if (revision) {
+      source.href = `${repo}/commit/${revision}`;
+      source.textContent = revision.slice(0, 7);
+      source.title = revision;
+    }
+    flow.replaceChildren(...stages.map((stage, i) =>
       buildNode(stage[0], stage[1], stage[2], stage[3], stage[4], i === next ||
         (stage[1] === 'watchtower' && stage[2].state === 'in_progress'), data.checked_at,
         tag === 'dev' && stage[1] === 'publish' ? data.wait_averages?.release : data.wait_averages?.ci)));
