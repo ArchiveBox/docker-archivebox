@@ -4,27 +4,59 @@
 <style>
 :root{color-scheme:light dark;font:16px/1.6 system-ui}body{max-width:960px;margin:48px auto;padding:0 24px}a{color:#478eff}h1{line-height:1.2}section{border:1px solid #8885;border-radius:12px;padding:24px;margin:20px 0}code{overflow-wrap:anywhere}table{width:100%;text-align:left}td,th{padding:10px 10px 10px 0;vertical-align:top}.muted{color:#888}.bad{color:#e76d53}progress{width:100%;height:20px}
 .builds{padding:0 20px;background:color-mix(in srgb, CanvasText 2%, Canvas)}
-.build-row{display:grid;grid-template-columns:8rem minmax(0,1fr);align-items:center;gap:12px;padding:16px 0}
+.build-row{display:grid;grid-template-columns:8rem minmax(0,1fr);align-items:start;gap:12px;padding:16px 0}
 .build-row + .build-row{border-top:1px solid #8884}
-.build-tag{width:max-content;font-size:.875rem;font-weight:650;white-space:nowrap}
+.build-tag{width:max-content;font-size:.875rem;font-weight:650;white-space:nowrap;margin-top:13px}
 .build-flow{display:flex;align-items:flex-start;gap:4px;padding:0;margin:0;list-style:none}
 .build-stage{position:relative;flex:1;min-width:0;text-align:center}
 .build-stage + .build-stage::before{content:'→';position:absolute;left:-12px;top:7px;color:GrayText;pointer-events:none}
 .build-node{display:flex;flex-direction:column;align-items:center;gap:3px;color:CanvasText;text-decoration:none;font-size:.75rem;line-height:1.25}
-a.build-node:hover .build-label{text-decoration:underline}
+a.build-node:hover .build-label,a.build-node:focus-visible .build-label{text-decoration:underline}
+.build-label{font-weight:650;text-wrap:balance}
+.build-state,.build-avg{color:GrayText;font-size:.7rem}
+.build-link{color:LinkText;font-size:.65rem;text-decoration:underline;text-underline-offset:2px}
+.build-stage[aria-current] .build-icon{border-color:#478eff;box-shadow:0 0 0 3px #478eff36;background:color-mix(in srgb,#478eff 12%,Canvas)}
+.build-stage[aria-current] .build-state,.build-stage[aria-current] .elapsed{color:CanvasText;font-weight:700}
 .build-icon{position:relative;display:grid;place-items:center;width:40px;height:40px;margin-bottom:3px;border:1px solid #8886;border-radius:12px;background:Canvas}
 .build-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .build-mark{position:absolute;right:-5px;bottom:-4px;width:16px;height:16px;display:grid;place-items:center;border:1px solid Canvas;border-radius:50%;background:#626b77;color:white;font:bold 11px/1 system-ui}
 [data-state=success] .build-mark,[data-state=published] .build-mark,[data-state=commit] .build-mark{background:#24734b}
 [data-state=in_progress] .build-mark{background:#1562b8}
-[data-state=failure] .build-mark,[data-state=timed_out] .build-mark{background:#b33830}
+[data-state=failure] .build-mark,[data-state=timed_out] .build-mark,[data-state=startup_failure] .build-mark{background:#b33830}
 [data-state=queued] .build-mark,[data-state=pending] .build-mark,[data-state=different] .build-mark{background:#905713}
 .build-revision{color:GrayText;font-size:.7rem}
+.elapsed,.branch-timing{font-variant-numeric:tabular-nums}
+.jobs{border-top:1px solid #8884;padding:12px 0;font-size:.8rem}
+.jobs-heading{display:flex;align-items:center;gap:10px;font-weight:650;margin-bottom:8px}
+.jobs-heading a,.job-list li a,.branch-progress a{color:LinkText}
+.jobs-body{display:grid;gap:4px;align-items:start}
+.job-count{display:block;font-weight:650;padding:3px 0}
+summary.job-count{display:list-item;cursor:pointer}
+.job-list,.job-list ul{min-width:0}
+.job-list ul{padding:0;margin:0;list-style:none;max-height:11rem;overflow:auto;scrollbar-gutter:stable}
+.job-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 8px;padding:4px 6px 4px 0;line-height:1.35;border-bottom:1px solid #8883}
+.job-list li a{overflow-wrap:anywhere;text-underline-offset:2px}
+.job-state{grid-column:1;color:GrayText;font-size:.7rem}
+.job-count[data-state=failure]:is(summary),.job-count[data-state=runner],.branch-runner,.stage-runner{color:#a62520}
+.stage-runner{font-size:.7rem;font-weight:700}
+.job-list:has([data-state=runner]){grid-column:1/-1;border:1px solid #e5685a;border-radius:8px;padding:4px 10px;background:#e5685a16}
+[data-state=runner] + ul{max-height:7rem}
+.branch-progress{margin-top:8px;font-size:.75rem;min-width:0;max-width:24rem}
+.branch-progress-title{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}
+.branch-meter{position:relative}
+.branch-meter progress{display:block;width:100%;height:7px;margin:6px 0 4px;accent-color:#4089e2}
+.branch-meter[data-state=failure] progress,.branch-meter[data-state=cancelled] progress{accent-color:#ae5a53}
+.branch-average{position:absolute;top:-2px;height:11px;left:var(--mean);border-left:2px solid CanvasText;pointer-events:none}
+.branch-timing{color:GrayText}
+@media(prefers-color-scheme:dark){
+  .job-count[data-state=failure]:is(summary),.job-count[data-state=runner],.branch-runner,.stage-runner{color:#ff9f8d}
+}
 @media(max-width:640px){
   .builds{margin-inline:-8px;padding-inline:10px}
   .build-row{grid-template-columns:minmax(0,1fr);gap:10px}
-  .build-tag{margin-left:4px}
-  .build-label{max-width:7ch}
+  .build-tag{margin:0 0 0 4px}
+  .build-label{overflow-wrap:anywhere;font-size:.7rem}
+  .job-list ul{max-height:9rem}
 }
 </style>
 <a href="/">← Service status & latency charts</a>
@@ -32,77 +64,339 @@ a.build-node:hover .build-label{text-decoration:underline}
 <section class="builds" aria-label="Docker build status">
   <div class="build-row" role="group" aria-labelledby="tag-dev"><code class="build-tag" id="tag-dev">:dev</code><ol class="build-flow" id="flow-dev"></ol></div>
   <div class="build-row" role="group" aria-labelledby="tag-dev-unstable"><code class="build-tag" id="tag-dev-unstable">:dev-unstable</code><ol class="build-flow" id="flow-dev-unstable"></ol></div>
+  <div class="jobs" id="ci-jobs" hidden></div>
+  <div class="jobs" id="release-jobs" hidden></div>
 </section>
 <p id="freshness">Loading current deployment…</p>
 <section><h2>ArchiveBox running now</h2><p id="commit"></p><p id="version"></p><small id="image" class="muted"></small></section>
 <section><h2>GitHub branch comparison</h2><table><thead><tr><th>Branch</th><th>Head commit</th><th>Server relative to head</th></tr></thead><tbody id="branches"></tbody></table><p id="branch-time" class="muted"></p></section>
 <section><h2>Cabbage disk space</h2><p id="disk"></p><progress id="disk-bar" max="100"></progress><p class="muted">Root filesystem (/). The status check fails below 10 GiB or 10% available.</p></section>
 <p class="muted">Host metadata refreshes every minute; GitHub comparisons every 10 minutes and after a deployment. Revision comes from the running container's OCI image label. Monitoring is hosted on Cabbage, so a full host outage also takes this page offline.</p>
-<script>
-const repo='https://github.com/ArchiveBox/ArchiveBox';
+<script type="module">
+import {currentBuilds, dockerBuild, earlyPublish, failed, github, jobStage, repo, requiredCI} from '/builds.mjs';
+
 const icons = {
   commit: '<circle cx="7" cy="5" r="2"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="7" r="2"/><path d="M7 7v10m0-2c6 0 10-1 10-6"/>',
+  prepare: '<path d="M6 4h12v16H6zM9 8h6m-6 4h6m-6 4h4"/>',
   build: '<path d="M3 7h18v12H3zm4 0v12m5-12v12m5-12v12M6 4h12"/>',
   checks: '<path d="M12 3l7 3v5c0 4-2.5 7-7 10-4.5-3-7-6-7-10V6zM9 12l2 2 4-4"/>',
   publish: '<path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/>',
   registry: '<path d="M4 7l8-4 8 4v10l-8 4-8-4zm0 0 8 4 8-4m-8 4v10M8 5l8 4v4"/>',
 };
 const marks = {
-  success:['✓','Succeeded'], in_progress:['↻','In progress'], queued:['…','Queued'],
-  pending:['…','Pending'], waiting:['…','Waiting'], failure:['×','Failed'], timed_out:['×','Timed out'],
+  success:['✓','Success'], in_progress:['↻','In progress'], queued:['…','Queued'],
+  pending:['…','Pending'], requested:['…','Requested'], waiting:['…','Waiting'],
+  failure:['×','Failed'], timed_out:['×','Timed out'], startup_failure:['×','Startup failure'],
   action_required:['!','Action required'], cancelled:['−','Cancelled'], skipped:['−','Skipped'],
-  commit:['✓','Latest dev push'], different:['◷','Published from a different commit'],
-  published:['✓','Published'], unknown:['?','Unknown'],
+  commit:['✓','Commit'], published:['✓','Published'], different:['◷','Published'], unknown:['?','Unknown'],
 };
-function actionLink(run, job) {
-  if (!run) return null;
-  return `${repo}/actions/runs/${run}${job ? `/job/${job}` : ''}`;
+const prepareJob = 'prepare / Prepare the version before starting expensive jobs';
+let latest, live, comparison, lastRendered, liveRequest;
+const checkedRunnerThreshold = new Set();
+
+function element(tag, text, className) {
+  const el = document.createElement(tag);
+  if (text !== undefined) el.textContent = text;
+  if (className) el.className = className;
+  return el;
 }
-function buildNode(label, icon, state, href, revision, detail) {
-  const item = document.createElement('li');
-  const node = document.createElement(href ? 'a' : 'div');
-  item.className = 'build-stage';
+function external(href, label) {
+  const a = element('a', label);
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  return a;
+}
+function actionLink(run, job) {
+  return run && `${repo}/actions/runs/${run}${job ? `/job/${job}` : ''}`;
+}
+function duration(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor(s / 60) % 60;
+  if (hours) return `${hours}h ${minutes}m`;
+  if (minutes) return `${minutes}m ${String(s % 60).padStart(2, '0')}s`;
+  return `${s}s`;
+}
+function elapsed(started, finished) {
+  return Math.max(0, ((finished ? Date.parse(finished) : Date.now()) - Date.parse(started)) / 1000);
+}
+function clock(started, finished) {
+  const time = element('span', duration(elapsed(started, finished)), 'elapsed');
+  if (!finished) time.dataset.started = started;
+  return time;
+}
+function active(state) {
+  return ['in_progress', 'queued', 'pending', 'requested', 'waiting'].includes(state);
+}
+function buildNode(label, icon, stage, href, average, current, checkedAt) {
+  const item = element('li', undefined, 'build-stage');
+  const node = href ? external(href) : element('div');
   node.className = 'build-node';
-  if (href) node.href = href;
-  else node.setAttribute('role', 'img');
-  const [mark, status] = marks[state] || marks.unknown;
-  node.dataset.state = state || 'unknown';
-  node.title = [label, status, detail, revision].filter(Boolean).join(' · ');
-  node.setAttribute('aria-label', node.title);
-  node.innerHTML = `<span class="build-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${icons[icon]}</svg><span class="build-mark">${mark}</span></span><span class="build-label">${label}</span>`;
-  if (revision) {
-    const sha = document.createElement('code');
-    sha.className = 'build-revision';
-    sha.textContent = revision.slice(0, 7);
-    node.append(sha);
+  node.dataset.state = stage.state || 'unknown';
+  if (current) item.setAttribute('aria-current', 'step');
+  const [mark, status] = marks[stage.state] || marks.unknown;
+  node.innerHTML = `<span class="build-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${icons[icon]}</svg><span class="build-mark">${mark}</span></span>`;
+  node.append(element('span', label, 'build-label'));
+  if (stage.revision) {
+    node.append(element('code', stage.revision.slice(0, 7), 'build-revision'));
+    node.title = [stage.version, stage.revision].filter(Boolean).join(' · ');
   }
+  if (stage.state !== 'commit') node.append(element('span', status, 'build-state'));
+  if (stage.started) node.append(clock(stage.started, stage.finished));
+  const waiting = stage.jobsUnavailable ? 0 : stage.jobs?.filter(job => runnerWait(job, checkedAt)).length;
+  if (waiting) node.append(element('span', `⚠ ${waiting} Queued · 5m+`, 'stage-runner'));
+  if (average) {
+    const avg = element('span', `Avg ${duration(average.seconds)}`, 'build-avg');
+    avg.title = `Avg · ${average.count} runs`;
+    node.append(avg);
+  }
+  if (href) node.append(element('span', icon === 'registry' ? '↗' : 'GitHub ↗', 'build-link'));
   item.append(node);
   return item;
 }
-function renderBuilds(data) {
-  const {revision, run, build, checks, early, release, tags} = data || {};
+function ciStage(ci) {
+  const gate = ci.jobs.find(job => job.name === requiredCI);
+  if (ci.state === 'success' && gate?.state === 'skipped') return {...ci, state: 'skipped'};
+  return {...ci, finished: ci.finished && (gate?.finished || ci.finished)};
+}
+function stagesFor(tag, data) {
+  const ci = data.ci;
+  const image = data.tags?.[tag] || {};
+  const registry = {...image, state: image.revision ? (ci?.revision === image.revision ? 'published' : 'different') : 'unknown'};
+  const commit = {state: ci ? 'commit' : 'unknown', revision: ci?.revision};
+  const start = ['Commit', 'commit', commit, ci && `${repo}/commit/${ci.revision}`];
+  const end = ['Docker Hub', 'registry', registry, `https://hub.docker.com/r/archivebox/archivebox/tags?name=${tag}`];
+  if (!ci) return [start, end];
+  const averages = data.averages || {};
+  const ciUrl = actionLink(ci.id);
+  const tested = ciStage(ci);
+  if (tag === 'dev') {
+    const release = data.release || {state: tested.state === 'skipped' || failed(ci.state) || ci.state === 'cancelled' ? 'skipped' : 'waiting'};
+    return [start, ['CI', 'checks', tested, ciUrl, averages.dev],
+      ['Release', 'publish', release, actionLink(release.id) || ciUrl, averages.release], end];
+  }
+  const prepare = jobStage(ci.jobs, prepareJob, ci);
+  const docker = jobStage(ci.jobs, dockerBuild, ci, 2);
+  const early = jobStage(ci.jobs, earlyPublish, ci);
+  return [start, ['Prepare release version', 'prepare', prepare, actionLink(ci.id, prepare.jobs[0]?.id)],
+    [dockerBuild, 'build', docker, ciUrl, averages.docker],
+    [earlyPublish, 'publish', early, actionLink(ci.id, early.jobs[0]?.id), averages.early], end];
+}
+function runnerWait(job, checkedAt) {
+  return job.state === 'queued' && checkedAt * 1000 - Date.parse(job.started) >= 300000;
+}
+function jobList(run, jobs, label, state, open) {
+  const summary = jobs.length ? element('summary', `${jobs.length} ${label}`, 'job-count')
+    : element('span', `0 ${label}`, 'job-count');
+  summary.dataset.state = state;
+  if (!jobs.length) return summary;
+  const details = element('details', undefined, 'job-list');
+  details.open = open;
+  details.append(summary);
+  const list = element('ul');
+  for (const job of jobs) {
+    const row = element('li');
+    row.append(external(actionLink(run.id, job.id), job.name));
+    if (job.started) row.append(clock(job.started, job.finished));
+    if (state === 'failure') row.append(element('span', marks[job.state]?.[1], 'job-state'));
+    list.append(row);
+  }
+  details.append(list);
+  return details;
+}
+function showJobs(container, label, run, checkedAt) {
+  if (!run) {
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
+  const byStart = (a, b) => (Date.parse(a.started) || Infinity) - (Date.parse(b.started) || Infinity);
+  const running = run.jobs.filter(job => job.state === 'in_progress').sort(byStart);
+  const queued = run.jobs.filter(job => job.state === 'queued').sort(byStart);
+  const failures = run.jobs.filter(job => failed(job.state)).sort((a, b) => Date.parse(b.finished) - Date.parse(a.finished));
+  const waiting = run.jobsUnavailable ? [] : queued.filter(job => runnerWait(job, checkedAt));
+  const header = element('div', undefined, 'jobs-heading');
+  header.append(external(actionLink(run.id), `${label} · Jobs ↗`));
+  if (run.jobsUnavailable) header.append(element('span', 'Unknown', 'build-state'));
+  if (run.jobsUnavailable && !run.jobs.length) {
+    container.replaceChildren(header);
+    return;
+  }
+  const body = element('div', undefined, 'jobs-body');
+  if (waiting.length) body.append(jobList(run, waiting, 'Waiting for a runner · 5m+', 'runner', true));
+  body.append(jobList(run, failures, 'Failed', 'failure', true), jobList(run, running, 'In progress', 'in_progress', true),
+    jobList(run, queued, 'Queued', 'queued', false));
+  container.replaceChildren(header, body);
+}
+function getBuilds() {
+  const cached = latest?.builds || {};
+  return live?.checked_at >= (cached.checked_at || 0) ? {...cached, ...live, main: live.main || cached.main} : cached;
+}
+function renderBuilds() {
+  const data = getBuilds();
+  const key = [data.checked_at, data.collected_at, data.ci?.id].join();
+  if (key === lastRendered) return;
+  lastRendered = key;
   for (const tag of ['dev', 'dev-unstable']) {
-    const gated = tag === 'dev';
-    const publish = gated ? release : early;
-    const image = tags?.[tag];
-    const imageState = image && (revision && image.revision !== revision ? 'different' : 'published');
-    const stages = [
-      buildNode('Commit', 'commit', revision && 'commit', revision && `${repo}/commit/${revision}`, revision),
-      buildNode('Docker build', 'build', build, actionLink(run)),
-    ];
-    if (gated) stages.push(buildNode('CI checks', 'checks', checks?.state, actionLink(run, checks?.job)));
-    stages.push(
-      buildNode(gated ? 'Publish' : 'Early publish', 'publish', publish?.state,
-        actionLink(gated ? publish?.run : run, publish?.job)),
-      buildNode('Docker Hub', 'registry', imageState, `https://hub.docker.com/r/archivebox/archivebox/tags?name=${tag}`,
-        image?.revision, image?.version),
-    );
-    document.querySelector(`#flow-${tag}`).replaceChildren(...stages);
+    const stages = stagesFor(tag, data);
+    const now = stages.findIndex(([, , stage]) => stage.state === 'in_progress' || stage.state === 'queued');
+    const next = now < 0 ? stages.findIndex(([, , stage]) => active(stage.state)) : now;
+    document.querySelector(`#flow-${tag}`).replaceChildren(...stages.map((stage, i) =>
+      buildNode(stage[0], stage[1], stage[2], stage[3], stage[4], i === next, data.checked_at)));
+  }
+  showJobs(document.querySelector('#ci-jobs'), 'CI', data.ci, data.checked_at);
+  showJobs(document.querySelector('#release-jobs'), 'Release', data.release, data.checked_at);
+}
+function link(sha) {
+  const a = external(`${repo}/commit/${sha}`, sha);
+  const code = element('code');
+  code.append(a);
+  return code;
+}
+function comparisonProgress(name, branch, data) {
+  const run = name === 'dev' ? data.ci : data.main;
+  if (!run || branch.head !== run.revision) return null;
+  const tracksUnstable = name === 'dev' && /:dev-unstable$/.test(latest.image_ref);
+  const early = tracksUnstable && jobStage(run.jobs, earlyPublish, run);
+  const stage = ciStage(run);
+  const avg = data.averages?.[tracksUnstable ? 'unstable' : name];
+  const progress = element('div', undefined, 'branch-progress');
+  const title = element('div', undefined, 'branch-progress-title');
+  title.append(external(actionLink(run.id, early?.jobs[0]?.id), `${early ? earlyPublish : 'CI'} ↗`));
+  const state = early?.state === 'waiting' ? stage.state : early?.state || stage.state;
+  const finished = early?.finished || (!active(early?.state) ? stage.finished : null);
+  title.append(element('span', (marks[state] || marks.unknown)[1], 'build-state'));
+  progress.append(title);
+  const waiting = run.jobsUnavailable ? [] : run.jobs.filter(job => runnerWait(job, data.checked_at));
+  if (name === 'main' && waiting.length) {
+    progress.append(element('span', `${waiting.length} Waiting for a runner · 5m+`, 'branch-runner'));
+  }
+  if (avg) {
+    const meter = element('div', undefined, 'branch-meter');
+    meter.dataset.avg = avg.seconds;
+    meter.dataset.start = run.started || '';
+    meter.dataset.finish = finished || '';
+    meter.dataset.active = active(state);
+    meter.dataset.state = state;
+    const bar = element('progress');
+    bar.setAttribute('aria-label', `${name} ${early ? earlyPublish : 'CI'} elapsed time versus average`);
+    meter.append(bar, element('div', undefined, 'branch-average'), element('span', '', 'branch-timing'));
+    progress.append(meter);
+  } else if (run.started) {
+    progress.append(clock(run.started, finished));
+  }
+  return progress;
+}
+function updateClocks() {
+  for (const time of document.querySelectorAll('[data-started]')) time.textContent = duration(elapsed(time.dataset.started));
+  for (const meter of document.querySelectorAll('.branch-meter')) {
+    const {avg, start, finish, active: running} = meter.dataset;
+    const mean = Number(avg);
+    const time = start ? elapsed(start, finish) : 0;
+    const max = Math.max(mean * 1.12, time * 1.02);
+    const bar = meter.querySelector('progress');
+    bar.max = max;
+    bar.value = time;
+    meter.style.setProperty('--mean', `${100 * mean / max}%`);
+    const comparison = time > mean ? ` · +${duration(time - mean)}` :
+      running === 'true' ? ` · ETA ${duration(mean - time)}` : '';
+    meter.querySelector('.branch-timing').textContent = `${duration(time)} · Avg ${duration(mean)}${comparison}`;
+  }
+  const builds = getBuilds();
+  if (document.hidden || liveRequest || !builds.checked_at) return;
+  for (const run of [builds.ci, builds.release]) {
+    if (!run || run.jobsUnavailable || checkedRunnerThreshold.has(run.id)) continue;
+    if (run.jobs.some(job => job.state === 'queued' && !runnerWait(job, builds.checked_at) && runnerWait(job, Date.now() / 1000))) {
+      checkedRunnerThreshold.add(run.id);
+      void refreshGitHub();
+      break;
+    }
   }
 }
-function link(sha){const a=document.createElement('a');a.href=`${repo}/commit/${sha}`;a.textContent=sha;const c=document.createElement('code');c.append(a);return c}
-let latest;
-function freshness(){if(!latest)return;const age=Math.floor(Date.now()/1000-latest.updated_at);const el=document.querySelector('#freshness');el.textContent=`Updated ${new Date(latest.updated_at*1000).toLocaleString()} · ${age}s ago${age>180?' — STALE: collector is not updating':''}`;el.className=age>180?'bad':'muted'}
-async function refresh(){try{const r=await fetch('/deployment.json',{cache:'no-store'});if(!r.ok)throw Error(`HTTP ${r.status}`);const d=await r.json();latest=d;renderBuilds(d.builds);freshness();document.querySelector('#commit').replaceChildren(link(d.deployed));document.querySelector('#version').textContent=`Version ${d.version}`;document.querySelector('#image').textContent=`Image ${d.image}`;const rows=document.querySelector('#branches');rows.replaceChildren();for(const name of ['dev','main']){const b=d.branches[name],tr=document.createElement('tr');for(let i=0;i<3;i++)tr.append(document.createElement('td'));tr.children[0].textContent=name;if(b.error){tr.children[1].textContent='Unknown';tr.children[2].textContent=b.error;}else{tr.children[1].append(link(b.head));const a=document.createElement('a');a.href=`${repo}/compare/${d.deployed}...${b.head}`;a.textContent=b.behind===0&&b.ahead===0?'Up to date':`${b.behind} commits behind · ${b.ahead} commits ahead${b.status==='diverged'?' (diverged)':''}`;tr.children[2].append(a)}rows.append(tr)}document.querySelector('#branch-time').textContent=`GitHub checked ${new Date(d.branches.checked_at*1000).toLocaleString()}`;document.querySelector('#disk').textContent=`${d.disk.available_gib} GiB available / ${(d.disk.total_bytes/1073741824).toFixed(1)} GiB · ${d.disk.free_percent}% free`;document.querySelector('#disk-bar').value=100-d.disk.free_percent}catch(e){document.querySelector('#freshness').textContent=`Unable to refresh metadata: ${e.message}`;document.querySelector('#freshness').className='bad'}}
-renderBuilds();refresh();setInterval(refresh,60000);setInterval(freshness,1000);
+function renderBranches() {
+  if (!latest?.branches) return;
+  const data = getBuilds();
+  const rows = document.querySelector('#branches');
+  rows.replaceChildren();
+  for (const name of ['dev', 'main']) {
+    const base = latest.branches[name];
+    const b = name === 'dev' && comparison?.deployed === latest.deployed && comparison?.head === data.ci?.revision &&
+      comparison.checked_at >= latest.branches.checked_at ? comparison : base;
+    const tr = element('tr');
+    const head = element('td');
+    const relative = element('td');
+    tr.append(element('td', name), head, relative);
+    if (b?.error || !b?.head) {
+      head.textContent = 'Unknown';
+      relative.textContent = b?.error || '';
+    } else {
+      head.append(link(b.head));
+      const text = !b.behind && !b.ahead ? 'Up to date' :
+        `${b.behind} commits behind · ${b.ahead} commits ahead${b.status === 'diverged' ? ' (diverged)' : ''}`;
+      relative.append(external(`${repo}/compare/${latest.deployed}...${b.head}`, text));
+      const progress = comparisonProgress(name, b, data);
+      if (progress) relative.append(progress);
+    }
+    rows.append(tr);
+  }
+  document.querySelector('#branch-time').textContent = `GitHub checked ${new Date(latest.branches.checked_at * 1000).toLocaleString()}`;
+}
+function freshness() {
+  if (!latest) return;
+  const age = Math.floor(Date.now() / 1000 - latest.updated_at);
+  const el = document.querySelector('#freshness');
+  el.textContent = `Updated ${new Date(latest.updated_at * 1000).toLocaleString()} · ${age}s ago${age > 180 ? ' — STALE: collector is not updating' : ''}`;
+  el.className = age > 180 ? 'bad' : 'muted';
+}
+async function refresh() {
+  try {
+    const response = await fetch('/deployment.json', {cache:'no-store'});
+    if (!response.ok) throw Error(`HTTP ${response.status}`);
+    latest = await response.json();
+    freshness();
+    document.querySelector('#commit').replaceChildren(link(latest.deployed));
+    document.querySelector('#version').textContent = `Version ${latest.version}`;
+    document.querySelector('#image').textContent = `Image ${latest.image}`;
+    document.querySelector('#disk').textContent = `${latest.disk.available_gib} GiB available / ${(latest.disk.total_bytes / 1073741824).toFixed(1)} GiB · ${latest.disk.free_percent}% free`;
+    document.querySelector('#disk-bar').value = 100 - latest.disk.free_percent;
+    renderBuilds();
+    renderBranches();
+    updateClocks();
+  } catch (error) {
+    const el = document.querySelector('#freshness');
+    el.textContent = `Unable to refresh metadata: ${error.message}`;
+    el.className = 'bad';
+  }
+}
+async function refreshGitHub() {
+  if (document.hidden || liveRequest) return;
+  liveRequest = true;
+  try {
+    live = await currentBuilds(getBuilds());
+    renderBuilds();
+    const ci = live.ci;
+    const deployed = latest?.deployed;
+    if (deployed && latest.branches?.dev?.head !== ci.revision && Date.parse(ci.created) / 1000 >= latest.branches.checked_at &&
+      !(comparison?.deployed === deployed && comparison.head === ci.revision)) {
+      const result = await github(`compare/${deployed}...${ci.revision}`);
+      comparison = {head:ci.revision, deployed, status:result.status, behind:result.ahead_by, ahead:result.behind_by, checked_at:live.checked_at};
+    }
+  } catch {
+    // The collector's snapshot remains available when GitHub can't be reached.
+  } finally {
+    liveRequest = false;
+    renderBranches();
+    updateClocks();
+  }
+}
+renderBuilds();
+await refresh();
+void refreshGitHub();
+setInterval(refresh, 60000);
+setInterval(refreshGitHub, 240000);
+setInterval(() => { freshness(); updateClocks(); }, 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && Date.now() / 1000 - (getBuilds().checked_at || 0) >= 60) void refreshGitHub();
+});
 </script></html>

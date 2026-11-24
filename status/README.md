@@ -23,7 +23,13 @@ version and image ID, links to the deployed/dev/main commits and comparisons,
 and root filesystem available space. Behind/ahead counts are computed against
 immutable GitHub commit IDs; a diverged main branch is identified explicitly.
 The two Docker build diagrams follow the latest dev push through the GitHub
-Actions jobs and show the revisions currently published on Docker Hub.
+Actions jobs and show the revisions currently published on Docker Hub. The jobs
+show live elapsed times, failures, and jobs queued for at least five minutes.
+The branch comparison shows elapsed time and ETA against the historical average
+for the matching CI run or the early image published for the Cabbage dev deployment.
+The collector keeps the latest 20 measured successful samples per stage. The
+browser refreshes GitHub Actions directly every four minutes and rechecks jobs
+when the first runner wait in a run crosses five minutes.
 The host collector runs every minute, caches GitHub comparisons for ten minutes,
 and refreshes them immediately if the deployed revision changes. Build and tag
 status refresh every ten minutes. GitHub lookup errors are shown as unknown.
@@ -32,7 +38,7 @@ minutes; a Gatus heartbeat also fails when the collector stops updating.
 
 ## Deployment
 
-Requires Docker Compose, Docker Buildx, systemd, bash, curl, jq, and OpenSSL on Cabbage.
+Requires Docker Compose, Docker Buildx, Node.js 22+, systemd, bash, curl, jq, and OpenSSL on Cabbage.
 Copy this directory to `/opt/archivebox.status`, preserving `.env`, `data/`, and
 `etc/cloudflared/`. Keep generated metadata, credentials, and SQLite out of Git.
 Only nginx/Gatus bind to loopback; public access goes through Cloudflare.

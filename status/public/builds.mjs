@@ -1,0 +1,137 @@
+const api = 'https://api.github.com/repos/ArchiveBox/ArchiveBox';
+export const repo = 'https://github.com/ArchiveBox/ArchiveBox';
+export const dockerBuild = 'Tested Docker images';
+export const earlyPublish = 'Publish early dev image';
+export const testedPublish = 'Publish tested multiarch image';
+export const requiredCI = 'All required CI lanes';
+const promote = 'Promote the exact tested universal image';
+
+export async function github(path, token) {
+  const headers = {Accept: 'application/vnd.github+json'};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${api}/${path}`, {headers, cache: 'no-store', signal: AbortSignal.timeout(12000)});
+  if (!response.ok) throw new Error(`GitHub HTTP ${response.status} · ${path}`);
+  return response.json();
+}
+
+export function ciRuns(branch, token, count = 1) {
+  return github(`actions/workflows/ci.yml/runs?branch=${branch}&event=push&per_page=${count}`, token);
+}
+
+function jobRecord(job) {
+  return {
+    id: job.id, name: job.name, state: job.conclusion || job.status,
+    started: job.started_at, finished: job.completed_at,
+  };
+}
+
+export async function ciJobs(run, token) {
+  const suite = run.check_suite_id;
+  if (!suite) return [];
+  const path = `check-suites/${suite}/check-runs?per_page=100`;
+  const first = await github(path, token);
+  const remaining = Array.from({length: Math.max(0, Math.ceil(first.total_count / 100) - 1)},
+    (_, index) => github(`${path}&page=${index + 2}`, token));
+  const pages = [first, ...await Promise.all(remaining)];
+  return [...new Map(pages.flatMap(page => page.check_runs).map(job => [job.id, jobRecord(job)])).values()];
+}
+
+export function runRecord(run, jobs = []) {
+  return {
+    id: run.id, attempt: run.run_attempt, revision: run.head_sha, state: run.conclusion || run.status,
+    created: run.created_at, started: ['queued', 'requested', 'pending', 'waiting'].includes(run.status) ? null : run.run_started_at,
+    finished: run.status === 'completed' ? run.updated_at : null, jobs,
+  };
+}
+
+export async function releaseRecord(run, token) {
+  const {jobs} = await github(`actions/runs/${run.id}/jobs?per_page=30`, token);
+  const record = runRecord(run, jobs.map(jobRecord));
+  const publisher = jobs.find(job => job.name === testedPublish);
+  const published = publisher?.steps?.find(step => step.name === promote);
+  if (published?.conclusion === 'success') {
+    record.state = 'success';
+    record.finished = published.completed_at;
+  } else if (record.state === 'success') {
+    record.state = 'skipped';
+  }
+  record.publisher = publisher?.id;
+  return record;
+}
+
+export async function currentBuilds(previous = {}, token, includeMain = false) {
+  const devRequest = ciRuns('dev', token);
+  const mainRequest = includeMain ? ciRuns('main', token) : Promise.resolve(null);
+  const [devResult, mainResult] = await Promise.allSettled([devRequest, mainRequest]);
+  if (devResult.status === 'rejected') throw devResult.reason;
+  const {workflow_runs: devRuns} = devResult.value;
+  const mainRun = mainResult.value?.workflow_runs?.[0];
+  const run = devRuns[0];
+  if (!run) throw new Error('No dev CI workflow runs');
+
+  async function withJobs(raw, old) {
+    const record = runRecord(raw);
+    const same = old?.id === record.id && old.attempt === record.attempt;
+    if (same && record.finished && old.finished && !old.jobsUnavailable) return old;
+    try {
+      record.jobs = await ciJobs(raw, token);
+      // A workflow can report queued while its matrix already has running jobs.
+      if (!record.finished && record.jobs.some(job => job.state === 'in_progress')) record.state = 'in_progress';
+      if (!record.started && record.jobs.some(job => job.started &&
+        ['in_progress', 'success', 'failure', 'timed_out'].includes(job.state))) record.started = raw.run_started_at;
+    } catch (error) {
+      record.jobsUnavailable = true;
+      record.jobs = same ? old.jobs : [];
+      if (token || typeof window === 'undefined') console.error(error.message);
+    }
+    return record;
+  }
+  const [ci, main] = await Promise.all([
+    withJobs(run, previous.ci), mainRun ? withJobs(mainRun, previous.main) : previous.main,
+  ]);
+
+  let release = null;
+  if (ci.state === 'success' && ci.jobs.find(job => job.name === requiredCI)?.state !== 'skipped') {
+    const prior = previous.ci?.id === ci.id && previous.ci.attempt === ci.attempt ? previous.release : null;
+    if (prior?.finished) {
+      release = prior;
+    } else {
+      try {
+        const {workflow_runs: runs} = await github(
+          `actions/workflows/release.yml/runs?branch=dev&event=workflow_run&head_sha=${ci.revision}&per_page=1`, token);
+        if (runs[0]) release = await releaseRecord(runs[0], token);
+      } catch (error) {
+        release = prior;
+        if (token || typeof window === 'undefined') console.error(error.message);
+      }
+    }
+  }
+
+  return {
+    checked_at: Math.floor(Date.now() / 1000), ci, release, main,
+  };
+}
+
+export function jobStage(jobs, name, parent, count = 1) {
+  const stageJobs = jobs.filter(job => job.name === name || job.name.startsWith(`${name} / `));
+  const running = stageJobs.some(job => job.state === 'in_progress');
+  const queued = stageJobs.some(job => job.state === 'queued');
+  const failing = stageJobs.find(job => failed(job.state));
+  const started = stageJobs.filter(job => job.started && !['queued', 'skipped'].includes(job.state))
+    .map(job => job.started).sort()[0];
+  const successful = stageJobs.length === count && stageJobs.every(job => job.state === 'success');
+  const finished = !running && !queued ? stageJobs.map(job => job.finished).filter(Boolean).sort().at(-1) : null;
+  let state = 'waiting';
+  if (running) state = 'in_progress';
+  else if (queued) state = 'queued';
+  else if (failing) state = failing.state;
+  else if (successful) state = 'success';
+  else if (stageJobs.some(job => job.state === 'cancelled') || parent.state === 'cancelled') state = 'cancelled';
+  else if (parent.jobsUnavailable) state = 'unknown';
+  else if (parent.finished) state = 'skipped';
+  return {state, started, finished, jobs: stageJobs};
+}
+
+export function failed(state) {
+  return ['failure', 'timed_out', 'startup_failure'].includes(state);
+}
