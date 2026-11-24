@@ -18,14 +18,29 @@ github_actions() {
     curl -fsS --max-time 5 "$github/actions/$1"
 }
 
+github_ci_jobs() {
+    local run=$1 page=1 page_size=100 total=1 batch jobs='[]'
+    while (( (page - 1) * page_size < total )); do
+        batch=$(github_actions "runs/$run/jobs?per_page=$page_size&page=$page" | jq -ce '
+            select(.total_count | numbers) | {total_count, jobs:[.jobs[]
+                | select(.name == "All required CI lanes" or .name == "Publish early dev image"
+                    or (.name | startswith("Tested Docker images")))
+                | {id,name,status,conclusion}]}
+        ') || return 1
+        total=$(jq -r '.total_count' <<< "$batch")
+        jobs=$(jq -c --argjson batch "$batch" '. + $batch.jobs' <<< "$jobs")
+        page=$((page + 1))
+    done
+    printf '%s\n' "$jobs"
+}
+
 collect_builds() {
     local ci jobs run revision release release_run stages tags tag image_info
     stages='{}'
     if ci=$(github_actions 'workflows/ci.yml/runs?branch=dev&event=push&per_page=1' | jq -ce '.workflow_runs[0]'); then
         run=$(jq -r '.id' <<< "$ci")
         revision=$(jq -r '.head_sha' <<< "$ci")
-        jobs=$(github_actions "runs/$run/jobs?per_page=100" | jq -ce '.jobs | arrays
-            | map({id,name,status,conclusion})') || jobs=null
+        jobs=$(github_ci_jobs "$run") || jobs=null
         stages=$(jq -n --argjson ci "$ci" --argjson jobs "$jobs" '
             def state: .conclusion // .status;
             def waiting: if $jobs == null then "unknown"
