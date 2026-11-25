@@ -9,6 +9,13 @@ const publicPath = 'public/watchtower.json';
 const container = execFileSync('docker', ['inspect', '--format', '{{.Id}}', watchtower],
   {encoding:'utf8', timeout:5000}).trim();
 
+// Read the updater's actual cadence rather than assuming its default interval.
+const config = JSON.parse(execFileSync('docker', ['inspect', '--format', '{{json .Config}}', watchtower],
+  {encoding:'utf8', timeout:5000}));
+const intervalArg = config.Cmd?.findIndex(arg => arg === '--interval');
+const interval = Number(intervalArg >= 0 ? config.Cmd[intervalArg + 1] :
+  config.Cmd?.find(arg => arg.startsWith('--interval='))?.split('=')[1] ||
+  config.Env?.find(value => value.startsWith('WATCHTOWER_POLL_INTERVAL='))?.split('=')[1]) || null;
 let cached = {};
 try {
   cached = JSON.parse(readFileSync(cachePath, 'utf8'));
@@ -16,6 +23,7 @@ try {
   if (error.code !== 'ENOENT') throw error;
 }
 let samples = cached.samples || {};
+let last_scan = cached.container === container ? cached.last_scan : null;
 let latest = cached.latest;
 if (latest?.state === 'in_progress' && cached.container !== container) {
   latest = {...latest, state:'cancelled', finished:new Date().toISOString()};
@@ -29,12 +37,12 @@ function save() {
   const values = recent.map(([, value]) => value);
   const average = values.length ? {seconds:Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
     count:values.length} : null;
-  const payload = JSON.stringify({...latest, average});
+  const payload = JSON.stringify({...latest, average, interval, last_scan});
   if (payload === previousOutput) return;
   previousOutput = payload;
   // Atomic replacement lets the browser poll while Docker is replacing ArchiveBox.
   samples = Object.fromEntries(recent);
-  writeFileSync(`${cachePath}.tmp`, JSON.stringify({container, latest, samples}) + '\n');
+  writeFileSync(`${cachePath}.tmp`, JSON.stringify({container, latest, samples, last_scan}) + '\n');
   renameSync(`${cachePath}.tmp`, cachePath);
   writeFileSync(`${publicPath}.tmp`, payload + '\n', {mode:0o644});
   renameSync(`${publicPath}.tmp`, publicPath);
@@ -55,9 +63,10 @@ function update(line) {
     if (success) samples[attempt.started] = (Date.parse(timestamp) - Date.parse(attempt.started)) / 1000;
     if (latest === attempt) latest = finished;
     attempt = undefined;
-  } else {
+  } else if (!line.includes('msg="Update session completed"')) {
     return;
   }
+  if (line.includes('msg="Update session completed"') && (!last_scan || timestamp > last_scan)) last_scan = timestamp;
   // Debounce the initial historical log burst so only the latest update is published.
   clearTimeout(pendingWrite);
   pendingWrite = setTimeout(save, 150);

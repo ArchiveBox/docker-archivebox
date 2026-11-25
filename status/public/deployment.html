@@ -496,8 +496,11 @@ function stagesFor(tag, data) {
   const tested = ciStage(ci);
   if (tag === 'dev') {
     const release = data.release || {state: tested.state === 'skipped' || failed(ci.state) || ci.state === 'cancelled' ? 'skipped' : 'waiting'};
+    const complete = ci.state === 'success' && release.status === 'completed' && release.state === 'success';
+    const finalState = complete ? 'success' : failed(ci.state) ? ci.state : failed(release.state) ? release.state : 'waiting';
     return [start, ['CI', 'checks', tested, ciUrl, averages.dev ?? null],
-      ['Release', 'publish', release, actionLink(release.id) || `${repo}/actions/workflows/release.yml?query=branch%3Adev`, averages.release ?? null], ...end];
+      ['Release', 'publish', release, actionLink(release.id) || `${repo}/actions/workflows/release.yml?query=branch%3Adev`, averages.release ?? null],
+      ['CI finished', 'checks', {state:finalState}, actionLink(release.id) || ciUrl]];
   }
   const prepare = jobStage(ci.jobs, prepareJob, ci);
   const docker = jobStage(ci.jobs, dockerBuild, ci, 2);
@@ -506,10 +509,31 @@ function stagesFor(tag, data) {
     [dockerBuild, 'build', docker, ciUrl, averages.docker ?? null],
     [earlyPublish, 'publish', early, actionLink(ci.id, early.jobs[0]?.id), averages.early ?? null], ...end];
 }
-function imageETA(tag, stages, data, work) {
+function buildETA(tag, stages, data, work) {
   if (!data.ci || !data.checked_at || Date.now() / 1000 - data.checked_at > 600) return 'ETA —';
-  if (data.tags?.[tag]?.revision === data.ci.revision) return 'Published';
-  const pending = stages.filter(([, icon]) => !['commit', 'registry', 'watchtower'].includes(icon));
+  const isLive = tag === 'dev-unstable';
+  const prefix = isLive ? 'Live on Cabbage ETA' : 'All CI ETA';
+  const format = seconds => seconds < 60 ? `${prefix} <1m` :
+    `${prefix} ~${duration(Math.ceil(seconds / 60) * 60).replace(/ 00s$/, '')}`;
+  if (isLive && latest?.deployed === data.ci.revision) {
+    if (Date.now() / 1000 - latest.updated_at > 180) return `${prefix} —`;
+    if (latest.health === 'healthy') return 'Live on Cabbage';
+    if (latest.health === 'unhealthy') return 'Blocked';
+    return latest.health_interval ? format(Math.max(0, latest.health_interval - elapsed(latest.started_at))) : `${prefix} —`;
+  }
+  if (!isLive && data.ci.state === 'success' && data.release?.status === 'completed' &&
+      data.release.state === 'success') return 'All CI complete';
+  const published = data.tags?.[tag]?.revision === data.ci.revision;
+  let pending = isLive && published ? [] : stages.filter(([, icon]) => !['commit', 'registry', 'watchtower'].includes(icon));
+  if (!isLive) {
+    // These serial dependencies are the existing release.yml chain. Docker
+    // publication is followed by the verified-release cascade, not completion.
+    const release = data.release || {state:'waiting', jobs:[]};
+    const names = ['candidate', 'Publish tested Python artifacts', 'Publish tested multiarch image', 'Cascade verified release / cascade'];
+    pending = [['CI', 'checks', data.ci, null, data.averages?.dev], ...names.map(name =>
+      [name, 'publish', jobStage(release.jobs, name, release), null, data.job_averages?.release?.[name]])];
+    if (release.status === 'completed' && release.state === 'success') pending = pending.slice(0, 1);
+  }
   if (pending.some(([, , stage]) => failed(stage.state) || ['cancelled', 'skipped', 'action_required'].includes(stage.state) ||
       stage.jobs?.some(job => failed(job.state) || job.state === 'action_required'))) return 'Blocked';
   if (pending.some(([, , stage]) => stage.jobsUnavailable || stage.state === 'unknown')) return 'ETA —';
@@ -575,8 +599,7 @@ function imageETA(tag, stages, data, work) {
           // even if its estimated queue position would otherwise start sooner.
           return job.state === 'in_progress' ? end : Math.max(remaining, starts.get(job.id)) + end - starts.get(job.id);
         }
-        const history = data.job_averages?.[stage === data.release ? 'release' : 'ci'];
-        const seconds = history?.[job.name]?.seconds ?? average?.seconds;
+        const seconds = data.job_averages?.release?.[job.name]?.seconds ?? data.job_averages?.ci?.[job.name]?.seconds ?? average?.seconds;
         return seconds === undefined ? null : remaining + Math.max(0, seconds -
           (job.state === 'in_progress' && job.started ? elapsed(job.started) : 0));
       });
@@ -592,18 +615,40 @@ function imageETA(tag, stages, data, work) {
       }
     }
   }
-  return remaining < 60 ? 'Image ETA <1m' : `Image ETA ~${duration(Math.ceil(remaining / 60) * 60).replace(/ 00s$/, '')}`;
+  if (isLive) {
+    const early = jobStage(data.ci.jobs, earlyPublish, data.ci);
+    // Last update failures belong to an older image until this publication
+    // has finished. Do not let yesterday's attempt block a new build's ETA.
+    const currentAttempt = early.finished && watchtower?.started && Date.parse(watchtower.started) >= Date.parse(early.finished);
+    if (currentAttempt && failed(watchtower.state)) return 'Blocked';
+    if (!watchtower?.average || !latest?.health_interval) return `${prefix} —`;
+    if (currentAttempt && watchtower.state === 'in_progress') {
+      remaining += Math.max(0, watchtower.average.seconds - elapsed(watchtower.started)) + latest.health_interval;
+    } else if (currentAttempt && watchtower.state === 'success') {
+      remaining += Math.max(0, latest.health_interval - elapsed(watchtower.finished));
+    } else {
+      const interval = watchtower.interval;
+      if (!interval || !watchtower.last_scan || elapsed(watchtower.last_scan) > interval * 3) return `${prefix} —`;
+      // Project publication onto the updater's next scheduled check, including
+      // future checks when CI still has several minutes of work remaining.
+      const untilCheck = Date.parse(watchtower.last_scan) / 1000 + interval - Date.now() / 1000 - remaining;
+      const wait = ((untilCheck % interval) + interval) % interval;
+      remaining += wait + watchtower.average.seconds + latest.health_interval;
+    }
+  }
+  return format(remaining);
 }
-function showImageETAs(data, work) {
+function showBuildETAs(data, work) {
   for (const tag of ['dev', 'dev-unstable']) {
     const label = document.querySelector(`#tag-${tag}`).parentElement;
     let eta = label.querySelector('.build-eta');
     if (!eta) {
       eta = element('div', undefined, 'build-eta');
-      eta.title = 'Estimated time until the image is published, including queued jobs and running prerequisites.';
+      eta.title = tag === 'dev-unstable' ? 'Estimated time until the new version is healthy on Cabbage.' :
+        'Estimated time until all CI and release jobs finish, including Python artifacts, Docker images, and the release cascade.';
       label.append(eta);
     }
-    eta.textContent = imageETA(tag, stagesFor(tag, data), data, work);
+    eta.textContent = buildETA(tag, stagesFor(tag, data), data, work);
   }
 }
 
@@ -675,7 +720,7 @@ function renderBuilds() {
   lastRendered = key;
   const work = runningJobs(data);
   showRunners(work);
-  showImageETAs(data, work);
+  showBuildETAs(data, work);
   for (const tag of ['dev', 'dev-unstable']) {
     const stages = stagesFor(tag, data);
     const now = stages.findIndex(([, , stage]) => stage.state === 'in_progress' || stage.state === 'queued');
@@ -768,7 +813,7 @@ function updateClocks() {
     meter.querySelector('.branch-timing').textContent = `${duration(time)} · Avg ${duration(mean)}${comparison}`;
   }
   const builds = getBuilds();
-  showImageETAs(builds, runningJobs(builds));
+  showBuildETAs(builds, runningJobs(builds));
   const buildStatus = document.querySelector('#build-freshness');
   const age = builds.checked_at ? Math.max(0, Math.floor(Date.now() / 1000 - builds.checked_at)) : null;
   // The host heartbeat can be current while GitHub still serves the last

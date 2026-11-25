@@ -4,7 +4,6 @@ export const dockerBuild = 'Tested Docker images';
 export const earlyPublish = 'Publish early dev image';
 export const testedPublish = 'Publish tested multiarch image';
 export const requiredCI = 'All required CI lanes';
-const promote = 'Promote the exact tested universal image';
 
 export async function github(path, token) {
   const headers = {Accept: 'application/vnd.github+json'};
@@ -56,7 +55,7 @@ export async function ciJobs(run, token) {
 export function runRecord(run, jobs = []) {
   return {
     id: run.id, attempt: run.run_attempt, revision: run.head_sha, state: run.conclusion || run.status,
-    created: run.created_at, started: ['queued', 'requested', 'pending', 'waiting'].includes(run.status) ? null : run.run_started_at,
+    status: run.status, created: run.created_at, started: ['queued', 'requested', 'pending', 'waiting'].includes(run.status) ? null : run.run_started_at,
     finished: run.status === 'completed' ? run.updated_at : null, jobs,
   };
 }
@@ -65,13 +64,8 @@ export async function releaseRecord(run, token) {
   const jobs = await workflowJobs(run, token, 30);
   const record = runRecord(run, jobs.map(jobRecord));
   const publisher = jobs.find(job => job.name === testedPublish);
-  const published = publisher?.steps?.find(step => step.name === promote);
-  if (published?.conclusion === 'success') {
-    record.state = 'success';
-    record.finished = published.completed_at;
-  } else if (record.state === 'success') {
-    record.state = 'skipped';
-  }
+  // Docker promotion can finish before the cascade and other publishing jobs.
+  // Keep the workflow's actual completion state for the full release ETA.
   record.publisher = publisher?.id;
   return record;
 }
@@ -134,7 +128,7 @@ export async function currentBuilds(previous = {}, token, includeMain = false) {
   let release = null;
   if (ci.state === 'success' && ci.jobs.find(job => job.name === requiredCI)?.state !== 'skipped') {
     const prior = previous.ci?.id === ci.id && previous.ci.attempt === ci.attempt ? previous.release : null;
-    if (prior?.finished) {
+    if (prior?.status === 'completed' && prior.finished) {
       release = prior;
     } else {
       try {

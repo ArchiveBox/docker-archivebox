@@ -12,6 +12,8 @@ container=archiveboxdemo-archivebox-1
 deployed=$(docker inspect "$container" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
 [[ "$deployed" =~ ^[0-9a-f]{40}$ ]]
 version=$(docker inspect "$container" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')
+# JSON retains nanoseconds; Go template formatting renders durations as '30s'.
+read -r health started_at health_interval < <(docker inspect "$container" | jq -r '.[0] | [(.State.Health.Status // .State.Status), .State.StartedAt, ((.Config.Healthcheck.Interval // 0) / 1000000000)] | @tsv')
 read -r image image_ref < <(docker inspect "$container" --format '{{.Image}} {{.Config.Image}}')
 read -r total available < <(df -B1 --output=size,avail / | tail -1)
 github=https://api.github.com/repos/ArchiveBox/ArchiveBox
@@ -75,9 +77,10 @@ if [[ -n ${repos_pid:-} ]] && wait "$repos_pid"; then
     repos=$(cat data/repos.json)
 fi
 jq -n --argjson now "$now" --arg deployed "$deployed" --arg version "$version" --arg image "$image" --arg image_ref "$image_ref" \
+  --arg health "$health" --arg started_at "$started_at" --argjson health_interval "$health_interval" \
   --argjson total "$total" --argjson available "$available" --argjson branches "$branches" --slurpfile builds <(printf '%s\n' "$builds") \
   --slurpfile repo_ci <(printf '%s\n' "$repos") \
-  '{updated_at:$now,host:"cabbage",deployed:$deployed,version:$version,image:$image,image_ref:$image_ref,branches:$branches,builds:$builds[0],
+  '{updated_at:$now,host:"cabbage",deployed:$deployed,version:$version,image:$image,image_ref:$image_ref,health:$health,started_at:$started_at,health_interval:$health_interval,branches:$branches,builds:$builds[0],
     repos:[($repo_ci[0].repos // [])[] | del(.history, .job_history)],
     disk:{path:"/",total_bytes:$total,available_bytes:$available,available_gib:(($available/1073741824*10|floor)/10),free_percent:(($available/$total*1000|floor)/10)}}' > public/deployment.json.tmp
 chmod 644 public/deployment.json.tmp

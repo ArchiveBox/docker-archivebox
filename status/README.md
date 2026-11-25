@@ -26,8 +26,11 @@ The two Docker build diagrams follow the latest dev push through the GitHub
 Actions jobs and show the revisions currently published on Docker Hub. The jobs
 show live elapsed times, failures, and jobs waiting for runners. Blocked stages
 link to their prerequisites and the shared list of running jobs across repositories.
-Each image tag shows a rough publication ETA using remaining job runtimes and
-queued work behind the shared runners. Queue order follows job creation time;
+The `:dev` ETA covers all CI and release jobs, including Python artifacts,
+Docker images, and the release cascade. The `:dev-unstable` ETA covers the new
+version becoming healthy on Cabbage, including Watchtower's next check and
+container startup. Both use remaining job runtimes and queued work behind the
+shared runners. Queue order follows job creation time;
 parallel prerequisites contribute the longest remaining path. Job timing history
 also covers the other repositories sharing those runners.
 The branch comparison shows elapsed time and ETA against the historical average
