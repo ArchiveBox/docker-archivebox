@@ -14,6 +14,7 @@
 .runner-jobs ul{max-height:15rem;overflow:auto;padding-left:20px}
 .runner-jobs li{margin:5px 0;overflow-wrap:anywhere}
 .build-tag{width:max-content;font-size:.875rem;font-weight:650;white-space:nowrap;margin-top:13px}
+.build-eta{font-size:.75rem;line-height:1.4;color:GrayText;margin-top:6px;font-variant-numeric:tabular-nums}
 .build-source{display:none;font: .7rem ui-monospace,monospace}
 .build-flow{display:flex;align-items:flex-start;gap:4px;padding:0;margin:0;list-style:none}
 .build-stage{position:relative;flex:1;min-width:0;text-align:center}
@@ -505,6 +506,107 @@ function stagesFor(tag, data) {
     [dockerBuild, 'build', docker, ciUrl, averages.docker ?? null],
     [earlyPublish, 'publish', early, actionLink(ci.id, early.jobs[0]?.id), averages.early ?? null], ...end];
 }
+function imageETA(tag, stages, data, work) {
+  if (!data.ci || !data.checked_at || Date.now() / 1000 - data.checked_at > 600) return 'ETA —';
+  if (data.tags?.[tag]?.revision === data.ci.revision) return 'Published';
+  const pending = stages.filter(([, icon]) => !['commit', 'registry', 'watchtower'].includes(icon));
+  if (pending.some(([, , stage]) => failed(stage.state) || ['cancelled', 'skipped', 'action_required'].includes(stage.state) ||
+      stage.jobs?.some(job => failed(job.state) || job.state === 'action_required'))) return 'Blocked';
+  if (pending.some(([, , stage]) => stage.jobsUnavailable || stage.state === 'unknown')) return 'ETA —';
+
+  const entries = [...work.running, ...work.queued];
+  function averages(entry) {
+    if (entry.repo === 'ArchiveBox' && [data.ci?.id, data.main?.id, data.release?.id].includes(entry.run.id)) {
+      return data.job_averages?.[entry.run.id === data.release?.id ? 'release' : 'ci'] || {};
+    }
+    return entry.run.job_averages || {};
+  }
+  function runtime(entry) {
+    const history = averages(entry);
+    if (history[entry.job.name]) return history[entry.job.name].seconds;
+    // Matrix names can change between commits. Use measured siblings before
+    // falling back to the workflow average when a job has no samples yet.
+    const family = entry.job.name.split(' / ')[0];
+    const siblings = Object.entries(history).filter(([name]) => name.split(' / ')[0] === family);
+    if (siblings.length) return siblings.reduce((sum, [, avg]) => sum + avg.seconds, 0) / siblings.length;
+    if (entry.run.avg != null) return entry.run.avg;
+    let peers = entries.filter(other => other.job.runnerPool === entry.job.runnerPool)
+      .map(other => averages(other)[other.job.name]?.seconds).filter(seconds => seconds !== undefined);
+    if (!peers.length) peers = entries.map(other => averages(other)[other.job.name]?.seconds)
+      .filter(seconds => seconds !== undefined);
+    // First-time workflows have no own samples. A measured pool average is
+    // more useful for a rough queue forecast than treating their work as zero.
+    return peers.length ? peers.reduce((sum, seconds) => sum + seconds, 0) / peers.length : null;
+  }
+  const finish = new Map(), starts = new Map();
+  const slots = work.running.map(entry => {
+    const seconds = runtime(entry);
+    const left = seconds === null || !entry.job.started ? null : Math.max(0, seconds - elapsed(entry.job.started));
+    finish.set(entry.job.id, left);
+    starts.set(entry.job.id, 0);
+    return left;
+  });
+  // Each running job is one observed occupied runner. Reuse the first runner
+  // expected to finish, rather than adding parallel jobs' durations together.
+  // GitHub supplies no queue position, so creation order is our rough ordering.
+  for (const entry of [...work.queued].sort((a, b) =>
+    Date.parse(queueStart(a.job)) - Date.parse(queueStart(b.job)) || a.job.id - b.job.id)) {
+    const seconds = runtime(entry);
+    if (!slots.length || slots.some(slot => slot === null) || seconds === null) {
+      finish.set(entry.job.id, null);
+      continue;
+    }
+    const start = Math.min(...slots);
+    const index = slots.indexOf(start);
+    starts.set(entry.job.id, start);
+    finish.set(entry.job.id, start + seconds);
+    slots[index] = start + seconds;
+  }
+  let remaining = 0;
+  for (const [, , stage, , average] of pending) {
+    if (stage.state === 'success') continue;
+    const jobs = stage.jobs?.filter(job => !['success', 'skipped'].includes(job.state)) || [];
+    if (jobs.length) {
+      const ends = jobs.map(job => {
+        if (finish.has(job.id)) {
+          const end = finish.get(job.id);
+          if (end === null) return null;
+          // A downstream phase cannot start before its prerequisites finish,
+          // even if its estimated queue position would otherwise start sooner.
+          return job.state === 'in_progress' ? end : Math.max(remaining, starts.get(job.id)) + end - starts.get(job.id);
+        }
+        const history = data.job_averages?.[stage === data.release ? 'release' : 'ci'];
+        const seconds = history?.[job.name]?.seconds ?? average?.seconds;
+        return seconds === undefined ? null : remaining + Math.max(0, seconds -
+          (job.state === 'in_progress' && job.started ? elapsed(job.started) : 0));
+      });
+      if (ends.some(end => end === null)) return !work.running.length && !work.unavailable ? 'Waiting for runners' : 'ETA —';
+      remaining = Math.max(remaining, ...ends);
+    } else {
+      if (!average) return 'ETA —';
+      if (stage.state === 'in_progress') remaining = Math.max(remaining, Math.max(0, average.seconds - elapsed(stage.started)));
+      else {
+        if (!slots.length && !work.unavailable) return 'Waiting for runners';
+        if (slots.some(slot => slot === null) || work.unavailable) return 'ETA —';
+        remaining = Math.max(remaining, Math.min(...slots)) + average.seconds;
+      }
+    }
+  }
+  return remaining < 60 ? 'Image ETA <1m' : `Image ETA ~${duration(Math.ceil(remaining / 60) * 60).replace(/ 00s$/, '')}`;
+}
+function showImageETAs(data, work) {
+  for (const tag of ['dev', 'dev-unstable']) {
+    const label = document.querySelector(`#tag-${tag}`).parentElement;
+    let eta = label.querySelector('.build-eta');
+    if (!eta) {
+      eta = element('div', undefined, 'build-eta');
+      eta.title = 'Estimated time until the image is published, including queued jobs and running prerequisites.';
+      label.append(eta);
+    }
+    eta.textContent = imageETA(tag, stagesFor(tag, data), data, work);
+  }
+}
+
 function runnerWait(job, checkedAt) {
   return job.state === 'queued';
 }
@@ -573,6 +675,7 @@ function renderBuilds() {
   lastRendered = key;
   const work = runningJobs(data);
   showRunners(work);
+  showImageETAs(data, work);
   for (const tag of ['dev', 'dev-unstable']) {
     const stages = stagesFor(tag, data);
     const now = stages.findIndex(([, , stage]) => stage.state === 'in_progress' || stage.state === 'queued');
@@ -665,6 +768,7 @@ function updateClocks() {
     meter.querySelector('.branch-timing').textContent = `${duration(time)} · Avg ${duration(mean)}${comparison}`;
   }
   const builds = getBuilds();
+  showImageETAs(builds, runningJobs(builds));
   const buildStatus = document.querySelector('#build-freshness');
   const age = builds.checked_at ? Math.max(0, Math.floor(Date.now() / 1000 - builds.checked_at)) : null;
   // The host heartbeat can be current while GitHub still serves the last

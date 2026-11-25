@@ -26,6 +26,10 @@ The two Docker build diagrams follow the latest dev push through the GitHub
 Actions jobs and show the revisions currently published on Docker Hub. The jobs
 show live elapsed times, failures, and jobs waiting for runners. Blocked stages
 link to their prerequisites and the shared list of running jobs across repositories.
+Each image tag shows a rough publication ETA using remaining job runtimes and
+queued work behind the shared runners. Queue order follows job creation time;
+parallel prerequisites contribute the longest remaining path. Job timing history
+also covers the other repositories sharing those runners.
 The branch comparison shows elapsed time and ETA against the historical average
 for the matching CI run or the early image published for the Cabbage dev deployment.
 The collector keeps the latest 20 measured successful samples per stage and per

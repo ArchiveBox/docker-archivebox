@@ -78,7 +78,7 @@ jq -n --argjson now "$now" --arg deployed "$deployed" --arg version "$version" -
   --argjson total "$total" --argjson available "$available" --argjson branches "$branches" --slurpfile builds <(printf '%s\n' "$builds") \
   --slurpfile repo_ci <(printf '%s\n' "$repos") \
   '{updated_at:$now,host:"cabbage",deployed:$deployed,version:$version,image:$image,image_ref:$image_ref,branches:$branches,builds:$builds[0],
-    repos:[($repo_ci[0].repos // [])[] | del(.history)],
+    repos:[($repo_ci[0].repos // [])[] | del(.history, .job_history)],
     disk:{path:"/",total_bytes:$total,available_bytes:$available,available_gib:(($available/1073741824*10|floor)/10),free_percent:(($available/$total*1000|floor)/10)}}' > public/deployment.json.tmp
 chmod 644 public/deployment.json.tmp
 mv public/deployment.json.tmp public/deployment.json

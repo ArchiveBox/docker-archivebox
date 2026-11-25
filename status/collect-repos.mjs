@@ -50,7 +50,7 @@ function record(history, run) {
   for (const key of ordered.slice(20)) delete samples[key];
 }
 
-async function workflowJobs(path, run) {
+async function workflowJobs(path, run, history) {
   const failures = [];
   const activeJobs = [];
   const cancelled = [];
@@ -58,6 +58,19 @@ async function workflowJobs(path, run) {
   // Large matrix responses have failed at 100 jobs per page. Keep page offsets fixed.
   for (let page = 1; ; page++) {
     const {jobs, total_count: total} = await github(`${attempt}&page=${page}`);
+    // Reuse fetched job results to measure runner time, without another API pass.
+    for (const job of jobs.filter(job => job.conclusion === 'success')) {
+      const seconds = (Date.parse(job.completed_at) - Date.parse(job.started_at)) / 1000;
+      if (!(seconds >= 0)) continue;
+      const samples = history[job.name] ||= {};
+      samples[runKey(run)] = seconds;
+      const keys = Object.keys(samples).sort((a, b) => {
+        const [aRun, aAttempt] = a.split('.').map(Number);
+        const [bRun, bAttempt] = b.split('.').map(Number);
+        return bRun - aRun || bAttempt - aAttempt;
+      });
+      for (const key of keys.slice(20)) delete samples[key];
+    }
     failures.push(...jobs.filter(job => bad.has(job.conclusion)).map(job => ({id:job.id, name:job.name})));
     // This response is already fetched for failures. Keep runner assignments
     // for active work too, so contention does not require a second API pass.
@@ -124,6 +137,7 @@ async function collect(name, previous = {}) {
   // Runner capacity is shared with PRs and other branches, not just HEAD.
   const {workflow_runs: recent} = await github(`${path}/actions/runs?per_page=50`);
   const history = {...previous.history};
+  const job_history = structuredClone(previous.job_history || {});
   const prior = previous.runs || [];
   const boot = seed ? await seedRuns(path, branch, head, recent, prior, history) : null;
   let activeWorkflows = boot?.activeWorkflows;
@@ -179,9 +193,11 @@ async function collect(name, previous = {}) {
     let jobs = active(run) ? cached?.jobs : [];
     let jobs_checked_at = cached?.jobs_checked_at;
     let jobsUnavailable, jobsError;
-    if (active(run) || (bad.has(run.conclusion) && !failures?.length)) {
+    const jobHistory = job_history[run.workflow_id] ||= {};
+    if (active(run) || (bad.has(run.conclusion) && !failures?.length) ||
+        (run.conclusion === 'success' && (!cached?.jobs_checked_at || cached.status !== 'completed'))) {
       try {
-        const result = await workflowJobs(path, run);
+        const result = await workflowJobs(path, run, jobHistory);
         failures = result.failures;
         jobs = active(run) ? result.jobs : [];
         jobs_checked_at = Math.floor(Date.now() / 1000);
@@ -201,9 +217,13 @@ async function collect(name, previous = {}) {
       conclusion:run.conclusion,
       run_started_at:run.run_started_at, created_at:run.created_at, updated_at:run.updated_at,
       avg, failures, jobs, jobs_checked_at, jobsUnavailable, jobsError,
+      job_averages: Object.fromEntries(Object.entries(jobHistory).map(([name, samples]) => {
+        const values = Object.values(samples);
+        return [name, {seconds:Math.round(values.reduce((sum, s) => sum + s, 0) / values.length), count:values.length}];
+      })),
     });
   }
-  return {name, branch, head, checked_at:now, workflows_checked_at:workflowsChecked, runs, history};
+  return {name, branch, head, checked_at:now, workflows_checked_at:workflowsChecked, runs, history, job_history};
 }
 
 if (!seed && !token) {
