@@ -847,6 +847,14 @@ function renderBranches() {
       relative.append(external(`${repo}/compare/${latest.deployed}...${b.head}`, text));
       const progress = comparisonProgress(name, b, data);
       if (progress) relative.append(progress);
+      if (name === 'main' && data.mainPush && data.mainPush.id !== data.main?.id) {
+        const historical = data.mainPush;
+        const label = (marks[historical.state] || marks.unknown)[1];
+        const history = element('div', undefined, 'muted');
+        history.append(external(actionLink(historical.id),
+          `Last main push: ${label} · ${historical.revision.slice(0, 12)} ↗`));
+        relative.append(history);
+      }
     }
     rows.append(tr);
   }

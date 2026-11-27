@@ -94,13 +94,22 @@ async function currentCIJobs(run, previous, token, refreshWaits) {
   });
 }
 
+async function currentMainRequest(token) {
+  const [branch, lastPush] = await Promise.all([
+    github('branches/main', token), ciRuns('main', token),
+  ]);
+  const head = branch.commit.sha;
+  const {workflow_runs: runs} = await github(
+    `actions/workflows/ci.yml/runs?branch=main&head_sha=${head}&per_page=10`, token);
+  return {head, runs, push: lastPush.workflow_runs[0]};
+}
+
 export async function currentBuilds(previous = {}, token, includeMain = false) {
   const devRequest = ciRuns('dev', token);
-  const mainRequest = includeMain ? ciRuns('main', token) : Promise.resolve(null);
+  const mainRequest = includeMain ? currentMainRequest(token) : Promise.resolve(null);
   const [devResult, mainResult] = await Promise.allSettled([devRequest, mainRequest]);
   if (devResult.status === 'rejected') throw devResult.reason;
   const {workflow_runs: devRuns} = devResult.value;
-  const mainRun = mainResult.value?.workflow_runs?.[0];
   const run = devRuns[0];
   if (!run) throw new Error('No dev CI workflow runs');
 
@@ -121,9 +130,25 @@ export async function currentBuilds(previous = {}, token, includeMain = false) {
     }
     return record;
   }
-  const [ci, main] = await Promise.all([
-    withJobs(run, previous.ci, true), mainRun ? withJobs(mainRun, previous.main, false) : previous.main,
-  ]);
+  async function currentMain(data) {
+    if (!data) return previous.main;
+    // The push-only list can refer to an older SHA after a manual run. Main's
+    // current status belongs to the exact branch head, not the last push.
+    for (const candidate of data.runs) {
+      if (candidate.head_sha !== data.head) continue;
+      if (candidate.event === 'push') return withJobs(candidate, previous.main, false);
+      if (candidate.event !== 'workflow_dispatch' || candidate.status !== 'completed') continue;
+      const record = await withJobs(candidate, previous.main, false);
+      const gate = record.jobs.find(job => job.name === requiredCI);
+      // Manual invocations can be scoped or no-ops; require an actual CI gate.
+      if (gate?.state === 'success' || (gate?.state === 'failure' && record.state === 'failure')) return record;
+    }
+    return null;
+  }
+
+  const mainData = mainResult.value;
+  const mainPush = mainData ? (mainData.push ? runRecord(mainData.push) : null) : previous.mainPush;
+  const [ci, main] = await Promise.all([withJobs(run, previous.ci, true), currentMain(mainData)]);
 
   let release = null;
   if (ci.state === 'success' && ci.jobs.find(job => job.name === requiredCI)?.state !== 'skipped') {
@@ -143,7 +168,7 @@ export async function currentBuilds(previous = {}, token, includeMain = false) {
   }
 
   return {
-    checked_at: Math.floor(Date.now() / 1000), ci, release, main,
+    checked_at: Math.floor(Date.now() / 1000), ci, release, main, mainPush,
   };
 }
 
