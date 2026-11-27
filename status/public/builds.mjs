@@ -195,3 +195,19 @@ export function jobStage(jobs, name, parent, count = 1) {
 export function failed(state) {
   return ['failure', 'timed_out', 'startup_failure'].includes(state);
 }
+
+
+// Scheduled runs execute on the repository's default branch. Older cached
+// entries without a branch must not form a second, permanently stale row.
+export function latestRuns(runs, defaultBranch) {
+  const workflows = new Map();
+  for (const run of [...runs].sort((a, b) => b.id - a.id)) {
+    const branch = run.head_branch || (run.event === 'schedule' ? defaultBranch : '');
+    const key = `${run.workflow_id}:${branch}`;
+    if (!workflows.has(key)) workflows.set(key, [run]);
+    else if (run.status !== 'completed' && !workflows.get(key).some(item => item.id === run.id)) {
+      workflows.get(key).push(run);
+    }
+  }
+  return [...workflows.values()].flat();
+}

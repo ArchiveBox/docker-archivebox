@@ -1,7 +1,7 @@
 import {execFile} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
 import {promisify} from 'node:util';
-import {jobRecord} from './public/builds.mjs';
+import {jobRecord, latestRuns} from './public/builds.mjs';
 
 const exec = promisify(execFile);
 const names = [
@@ -89,16 +89,6 @@ async function workflowJobs(path, run, history) {
   return {failures, jobs:activeJobs};
 }
 
-function latestRuns(runs) {
-  const workflows = new Map();
-  for (const run of [...runs].sort((a, b) => b.id - a.id)) {
-    const key = `${run.workflow_id}:${run.head_branch}`;
-    if (!workflows.has(key)) workflows.set(key, [run]);
-    else if (active(run) && !workflows.get(key).some(item => item.id === run.id)) workflows.get(key).push(run);
-  }
-  return [...workflows.values()].flat();
-}
-
 async function seedRuns(path, branch, head, recent, previous, history) {
   const filters = `branch=${encodeURIComponent(branch)}`;
   const [workflows, headRuns, scheduled] = await Promise.all([
@@ -173,8 +163,8 @@ async function collect(name, previous = {}) {
     }
   }
   const eligible = [...candidates.values()].filter(run => active(run) || run.event === 'schedule' || run.head_sha === head);
-  const selected = [...latestRuns(eligible.filter(run => run.event !== 'schedule')),
-    ...latestRuns(eligible.filter(run => run.event === 'schedule'))];
+  const selected = [...latestRuns(eligible.filter(run => run.event !== 'schedule'), branch),
+    ...latestRuns(eligible.filter(run => run.event === 'schedule'), branch)];
   const runs = [];
   for (let run of selected) {
     if (active(run) && !incoming.some(item => item.id === run.id)) {

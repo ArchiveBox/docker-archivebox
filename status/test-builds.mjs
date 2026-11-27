@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {currentBuilds, requiredCI} from './public/builds.mjs';
+import {currentBuilds, latestRuns, requiredCI} from './public/builds.mjs';
 
 const at = '2026-11-27T00:00:00Z';
 const run = (id, head_sha, event, conclusion = 'success') => ({
@@ -72,4 +72,18 @@ test('reports a failed exact-head manual gate instead of an older successful exa
   const result = await currentBuilds({}, 'test', true);
   assert.equal(result.main.id, failed.id);
   assert.equal(result.main.state, 'failure');
+});
+
+
+test('deduplicates legacy scheduled statuses without hiding current failures or older running jobs', () => {
+  const scheduled = (id, workflow_id, head_branch, conclusion = 'success') =>
+    ({id, workflow_id, head_branch, conclusion, event: 'schedule', status: 'completed'});
+  const recovered = scheduled(10, 1, 'dev');
+  const legacyFailure = scheduled(1, 1, undefined, 'failure');
+  const latestFailure = scheduled(11, 2, 'dev', 'failure');
+  const oldSuccess = scheduled(2, 2, 'dev');
+  const legacyOnly = scheduled(3, 3, null, 'failure');
+  const stillRunning = {...scheduled(4, 1, 'dev'), status: 'in_progress', conclusion: null};
+  assert.deepEqual(latestRuns([legacyFailure, oldSuccess, latestFailure, stillRunning, recovered, legacyOnly], 'dev'),
+    [latestFailure, recovered, stillRunning, legacyOnly]);
 });
